@@ -74,27 +74,17 @@ describe('Rent Contract', () => {
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);
 
-    // Mint a rareblock for the owner
-    // await rareBlocks.connect(owner).mint(owner.address, 1, {value: ethers.utils.parseEther('0.08')});
-
     // Mint rareblock for the staker1
     await rareBlocks.connect(staker1).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
 
     // Mint rareblock for the staker2
-    await rareBlocks.connect(staker2).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
-    await rareBlocks.connect(staker2).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
+    await rareBlocks.connect(staker2).mint(staker2.address, 1, {value: ethers.utils.parseEther('0.08')});
+    await rareBlocks.connect(staker2).mint(staker2.address, 1, {value: ethers.utils.parseEther('0.08')});
 
     // Mint rareblock for the staker3
-    await rareBlocks.connect(staker3).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
-    await rareBlocks.connect(staker3).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
-    await rareBlocks.connect(staker3).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
-
-    // owner stake his token
-    // await rareBlocks.connect(owner).approve(renting.address, OWNER_TOKEN_ID);
-    // await renting.connect(owner).stake(OWNER_TOKEN_ID, rentPrice);
-
-    // Approve the contract to interact with the NFT
-    await rareBlocks.connect(staker1).approve(stake.address, 16);
+    await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
+    await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
+    await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
   });
 
   describe('Test rent()', () => {

@@ -74,9 +74,6 @@ describe('Stake Contract', () => {
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);
 
-    // Mint a rareblock for the owner
-    // await rareBlocks.connect(owner).mint(owner.address, 1, {value: ethers.utils.parseEther('0.08')});
-
     // Mint rareblock for the staker1
     await rareBlocks.connect(staker1).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
 
@@ -89,10 +86,6 @@ describe('Stake Contract', () => {
     await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
     await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
 
-    // owner stake his token
-    // await rareBlocks.connect(owner).approve(renting.address, OWNER_TOKEN_ID);
-    // await renting.connect(owner).stake(OWNER_TOKEN_ID, rentPrice);
-
     // Approve the contract to interact with the NFT
     await rareBlocks.connect(staker1).approve(stake.address, 16);
     await rareBlocks.connect(staker2).approve(stake.address, 17);
@@ -103,51 +96,51 @@ describe('Stake Contract', () => {
   });
 
   describe('Test stake()', () => {
-    // it("stake a token you don't own", async () => {
-    //   const sharePrice = await stake.getSharePrice();
-    //   const tx = stake.connect(staker1).stake(1, {value: sharePrice});
+    it("stake a token you don't own", async () => {
+      const sharePrice = await stake.getSharePrice();
+      const tx = stake.connect(staker1).stake(1, {value: sharePrice});
 
-    //   await expect(tx).to.be.revertedWith('TOKEN_NOT_OWNED');
-    // });
-    // it('stake a token you that does not exist', async () => {
-    //   const sharePrice = await stake.getSharePrice();
-    //   const tx = stake.connect(staker1).stake(1000, {value: sharePrice});
+      await expect(tx).to.be.revertedWith('TOKEN_NOT_OWNED');
+    });
+    it('stake a token you that does not exist', async () => {
+      const sharePrice = await stake.getSharePrice();
+      const tx = stake.connect(staker1).stake(1000, {value: sharePrice});
 
-    //   await expect(tx).to.be.revertedWith('ERC721: owner query for nonexistent token');
-    // });
-    // it('stake a token that the owner does not have approved yet to be transferred to the stake contract', async () => {
-    //   const sharePrice = await stake.getSharePrice();
-    //   await rareBlocks.connect(staker1).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
-    //   const tx = stake.connect(staker1).stake(22, {value: sharePrice});
+      await expect(tx).to.be.revertedWith('ERC721: owner query for nonexistent token');
+    });
+    it('stake a token that the owner does not have approved yet to be transferred to the stake contract', async () => {
+      const sharePrice = await stake.getSharePrice();
+      await rareBlocks.connect(staker1).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
+      const tx = stake.connect(staker1).stake(22, {value: sharePrice});
 
-    //   await expect(tx).to.be.revertedWith('ERC721: transfer caller is not owner nor approved');
-    // });
-    // it('stake it when totalShare = 0 -> sharePrice 0', async () => {
-    //   const tokenID = 16;
-    //   const sharePrice = 0;
+      await expect(tx).to.be.revertedWith('ERC721: transfer caller is not owner nor approved');
+    });
+    it('stake it when totalShare = 0 -> sharePrice 0', async () => {
+      const tokenID = 16;
+      const sharePrice = 0;
 
-    //   const totalSharesBefore = await stake.totalShares();
-    //   const userSharesBefore = await stake.userShares(staker1.address);
-    //   const tokenOwnersBefore = await stake.tokenOwners(tokenID);
+      const totalSharesBefore = await stake.totalShares();
+      const userSharesBefore = await stake.userShares(staker1.address);
+      const tokenOwnersBefore = await stake.tokenOwners(tokenID);
 
-    //   const tx = stake.connect(staker1).stake(tokenID, {value: 0});
+      const tx = stake.connect(staker1).stake(tokenID, {value: 0});
 
-    //   // Event is correctly emitted
-    //   await expect(tx).to.emit(stake, 'Staked').withArgs(staker1.address, tokenID, sharePrice);
+      // Event is correctly emitted
+      await expect(tx).to.emit(stake, 'Staked').withArgs(staker1.address, tokenID, sharePrice);
 
-    //   // Number of shares is updated
-    //   expect(await stake.totalShares()).to.eq(totalSharesBefore.add(1));
+      // Number of shares is updated
+      expect(await stake.totalShares()).to.eq(totalSharesBefore.add(1));
 
-    //   // Shares of the user is updated
-    //   expect(await stake.userShares(staker1.address)).to.eq(userSharesBefore.add(1));
+      // Shares of the user is updated
+      expect(await stake.userShares(staker1.address)).to.eq(userSharesBefore.add(1));
 
-    //   // Shares of the user is updated
-    //   expect(tokenOwnersBefore).to.eq(ethers.constants.AddressZero);
-    //   expect(await stake.tokenOwners(tokenID)).to.eq(staker1.address);
+      // Shares of the user is updated
+      expect(tokenOwnersBefore).to.eq(ethers.constants.AddressZero);
+      expect(await stake.tokenOwners(tokenID)).to.eq(staker1.address);
 
-    //   // Check that the owner of the token is the staker
-    //   expect(await rareBlocks.ownerOf(tokenID)).to.eq(stake.address);
-    // });
+      // Check that the owner of the token is the staker
+      expect(await rareBlocks.ownerOf(tokenID)).to.eq(stake.address);
+    });
 
     it('stake it when totalShare = 0 -> sharePrice 0', async () => {
       console.log(`[start] totalShares: ${await stake.totalShares()} | sharePrice: ${await stake.getSharePrice()}`);
