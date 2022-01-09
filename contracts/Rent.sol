@@ -180,8 +180,9 @@ contract Rent is Ownable, Pausable {
 
     /// @notice Emitted after the owner pull the funds to the tresury address
     /// @param user The authorized user who triggered the withdraw
+    /// @param tresury The tresury address to which the funds have been sent
     /// @param amount The amount withdrawn
-    event TresuryWithdraw(address indexed user, uint256 amount);
+    event TresuryWithdraw(address indexed user, address tresury, uint256 amount);
 
     /// @notice Emitted after the owner pull the funds to the tresury address
     /// @param user The authorized user who triggered the withdraw
@@ -208,7 +209,7 @@ contract Rent is Ownable, Pausable {
         require(amount != 0, "NO_TRESURY");
 
         // emit the event
-        emit TresuryWithdraw(msg.sender, amount);
+        emit TresuryWithdraw(msg.sender, tresury, amount);
 
         // Transfer to the tresury
         (bool success, ) = tresury.call{value: amount}("");
@@ -221,8 +222,9 @@ contract Rent is Ownable, Pausable {
 
     /// @notice Emitted after the owner pull the funds to the staker contract
     /// @param user The authorized user who triggered the withdraw
+    /// @param staker The staker contract address to which funds have been sent
     /// @param amount The amount withdrawn
-    event StakerPayout(address indexed user, uint256 amount);
+    event StakerPayout(address indexed user, IStake staker, uint256 amount);
 
     /// @notice Emitted after the owner pull the funds to the staker address
     /// @param user The authorized user who triggered the withdraw
@@ -256,7 +258,7 @@ contract Rent is Ownable, Pausable {
         stakerBalance = 0;
 
         // emit the event
-        emit StakerPayout(msg.sender, amount);
+        emit StakerPayout(msg.sender, staker, amount);
 
         // Transfer to the tresury
         (bool success, ) = address(staker).call{value: amount}("");

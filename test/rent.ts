@@ -203,7 +203,7 @@ describe('Rent Contract', () => {
       const tresuryBalance = rentBalance.sub(stakerFeeBalance);
       const tx = rent.connect(owner).withdrawTresury();
 
-      await expect(tx).to.emit(rent, 'TresuryWithdraw').withArgs(owner.address, tresuryBalance);
+      await expect(tx).to.emit(rent, 'TresuryWithdraw').withArgs(owner.address, tresury.address, tresuryBalance);
 
       await expect(await tx).to.changeEtherBalance(tresury, tresuryBalance);
 
@@ -222,7 +222,7 @@ describe('Rent Contract', () => {
       const tresuryBalance = rentBalance.sub(stakerFeeBalance);
       const tx = rent.connect(owner).withdrawTresury();
 
-      await expect(tx).to.emit(rent, 'TresuryWithdraw').withArgs(owner.address, tresuryBalance);
+      await expect(tx).to.emit(rent, 'TresuryWithdraw').withArgs(owner.address, tresury.address, tresuryBalance);
 
       await expect(await tx).to.changeEtherBalance(tresury, tresuryBalance);
 
@@ -256,7 +256,7 @@ describe('Rent Contract', () => {
       const tresuryBalance = rentBalance.sub(stakerFeeBalance);
       const tx = rent.connect(renter1).stakerPayout();
 
-      await expect(tx).to.emit(rent, 'StakerPayout').withArgs(renter1.address, stakerFeeBalance);
+      await expect(tx).to.emit(rent, 'StakerPayout').withArgs(renter1.address, stake.address, stakerFeeBalance);
 
       // There seems to be some problem with waffle `changeEtherBalance` called on contracts
       // await expect(await tx).to.changeEtherBalance(stake.address, stakerFeeBalance);
@@ -280,7 +280,7 @@ describe('Rent Contract', () => {
       const tresuryBalance = rentBalance.sub(stakerFeeBalance);
       const tx = rent.connect(renter1).stakerPayout();
 
-      await expect(tx).to.emit(rent, 'StakerPayout').withArgs(renter1.address, stakerFeeBalance);
+      await expect(tx).to.emit(rent, 'StakerPayout').withArgs(renter1.address, stake.address, stakerFeeBalance);
 
       // There seems to be some problem with waffle `changeEtherBalance` called on contracts
       // await expect(await tx).to.changeEtherBalance(stake.address, stakerFeeBalance);
