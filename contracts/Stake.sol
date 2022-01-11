@@ -201,6 +201,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
     }
 
+    // Returns the amount of staked tokens
     function getTotalStakedTokens() external view returns (uint256){
         return totalStaked;
     }
@@ -210,7 +211,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     // This functions is called by contract owner to create a new Payout. Stakers can than claim this payout and withdraw their share per token
-    function createPayout() external whenNotPaused {
+    function createPayout() external whenNotPaused onlyOwner{
 
         // Uint that's increased every time in receive() after we make a payment from the Rental contract and is reset after this functiom
         uint256 totalToPayout = valueNotDivided; 
