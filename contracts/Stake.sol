@@ -20,14 +20,32 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @notice Rent contract address
     IRent public rent;
 
-    /// @notice number of shares owned by stakers
-    uint256 public totalShares;
+    /// @notice number of staked tokens
+    uint256 public totalStaked;
 
-    /// @notice shares owned by an address
-    mapping(address => uint256) public userShares;
+    /// @notice count total value that has not been distributed yet
+    uint256 public valueNotDivided = 0;
 
     /// @notice token owned by stakers
     mapping(uint256 => address) public tokenOwners;
+
+    // @notice token staked on date
+    mapping(uint256 => uint256) public tokenStakeDate;
+
+    /// @notice amount of payouts created for keeping track of ids
+    uint256 currentPayoutIndex = 0;
+
+    /// @notice struct for divident payout
+    struct Payout {
+        uint256 date; // Payout date
+        mapping(uint256 => bool) claimedBy; // TokenIds who claimed this payout already
+        uint256 totalValue; // Total value of this payout
+        uint256 claimablePerToken; // Amount claimable per staked token
+        uint256 totalClaimed; // Count how many value has been claimed to date
+    }
+
+    // Mapping created Payouts per unique ID;
+    mapping(uint256 => Payout) public payouts;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
@@ -138,26 +156,15 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice Stake a RareBlocks pass and pay to get a staking share
     /// @param tokenId The RareBlocks tokenId to stake
-    function stake(uint256 tokenId) external payable whenNotPaused {
+    function stake(uint256 tokenId) external whenNotPaused {
         // check that the sender owns the token
         require(rareblocks.ownerOf(tokenId) == msg.sender, "TOKEN_NOT_OWNED");
 
-        // get the current share price
-        // @dev if the totalShares is zero it means that no one staked or everyone has withdrawn
-        uint256 sharePrice = 0;
-        if (totalShares != 0) {
-            // We need to remove the `msg.value` from the total balance to calculate the correct share price value
-            sharePrice = (getStakedBalance() - msg.value) / totalShares;
-        }
+        // Increase the total stake count
+        totalStaked += 1;
 
-        // Check that the user has sent the correct amount
-        require(msg.value == sharePrice, "NOT_ENOUGH_FUNDS");
-
-        // Increase the total share count
-        totalShares += 1;
-
-        // Add a share to the account
-        userShares[msg.sender] += 1;
+        // Save date of staked token
+        tokenStakeDate[tokenId] = now;
 
         // Remember the token owner for the unstake process
         tokenOwners[tokenId] = msg.sender;
@@ -175,49 +182,79 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // Check if the user was the owner of the tokenId
         require(tokenOwners[tokenId] == msg.sender, "NOT_TOKEN_OWNER");
 
-        // Get the current share value
-        uint256 sharePrice = getSharePrice();
-
         // Reset the owner of the token
         delete tokenOwners[tokenId];
 
-        // Decrease the number of shares owned by the user
-        userShares[msg.sender] -= 1;
+        // Remove tracking of token stake date
+        delete tokenStakeDate[tokenId];
 
-        // Decrease the total share count
-        totalShares -= 1;
+        // Decrease the total stake count
+        totalStaked -= 1;
 
         // Emit the unstake event
         emit Unstaked(msg.sender, tokenId, sharePrice);
 
         // Send the token to the user
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
-
-        // Send the share value to the user
-        (bool success, ) = msg.sender.call{value: sharePrice}("");
-        require(success, "PAYOUT_FAIL");
     }
 
-    /// @notice Get the total balance owed to stakers
-    /// @return The balance withdrawable by stakers
-    function getStakedBalance() public view returns (uint256) {
-        uint256 stakerBalanceOnRent = 0;
-
-        // Contract can start with rent contract not initialized
-        if (address(rent) != address(0)) {
-            stakerBalanceOnRent = rent.stakerBalance();
-        }
-        return address(this).balance + stakerBalanceOnRent;
+    function getTotalStakedTokens() external view returns (uint256){
+        return totalStaked;
     }
 
     /*///////////////////////////////////////////////////////////////
-                             SHARE / PAYOUT LOGIC
+                             PAYOUT / CLAIM PAYOUT
     //////////////////////////////////////////////////////////////*/
 
-    function getSharePrice() public view returns (uint256) {
-        if (totalShares == 0) return 0;
+    // This functions is called by contract owner to create a new Payout. Stakers can than claim this payout and withdraw their share per token
+    function createPayout() external whenNotPaused {
+        uint256 totalToPayout = valueNotDivided;
 
-        return getStakedBalance() / totalShares;
+        // Create a new claimable payout
+        payouts[currentPayoutIndex] = Payout({
+            date: now,
+            totalValue: totalToPayout,
+            claimablePerToken: totalToPayout / getTotalStakedTokens()
+        })
+
+        // Increase payout index
+        currentPayoutIndex += 1;
+        
+        // Reset total value thats unclaimed
+        valueNotDivided = 0;
+    }
+
+    function claimPayout(uint256 payoutId, uint256 tokenId) external {
+        // Check if user owns this token
+        require(tokenOwners[tokenId] == msg.sender, "NOT_TOKEN_OWNER");
+
+        // Get the selected Payout by payoutId
+        uint256 payout = payouts[payoutId];
+
+        // Check if user has already claimed reward for this token
+        require(!payout.claimedBy[tokenId], "REWARD_CLAIMED_ALREADY")
+
+        // Check if the payout doesnt pay more than the total. Protection against draining the funding
+        require(payout.totalValue > payout.totalClaimed, "PAYOUT_IS_EMPTY");
+        
+        // Get the date when token was staked
+        uint256 tokenStakeDate = tokenStakeDate[tokenId];
+        
+        // If token was staked after payout created, than not eligable for payout
+        require(payout.date > tokenStakeDate, "NOT_ELIGABLE");
+
+        // Get payable amount per staked token
+        uint256 payoutAmount = payout.claimablePerToken;
+
+        // Save tokenId to make sure they cannot claim this again with this tokenId
+        payout.claimedBy[tokenId] = true;
+
+        // Increase count of total payout for the payout
+        payout.totalClaimed += payoutAmount;
+
+        // Payout share of Payout
+        (bool success, ) = address(msg.sender).call{value: payoutAmount}("");
+        require(success, "PAYOUT_FAIL");
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -226,6 +263,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     receive() external payable {
         // Accept payments only from the rent contract
+        valueNotDivided = += msg.value; // Keep track of value received and hasn't been part of a divident payout yet
         require(msg.sender == address(rent), "ONLY_FROM_RENT");
     }
 }
