@@ -208,9 +208,11 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     // This functions is called by contract owner to create a new Payout. Stakers can than claim this payout and withdraw their share per token
     function createPayout() external whenNotPaused {
-        uint256 totalToPayout = valueNotDivided;
 
-        // Create a new claimable payout
+        // Uint that's increased every time in receive() after we make a payment from the Rental contract and is reset after this functiom
+        uint256 totalToPayout = valueNotDivided; 
+
+        // Create a new claimable payout, with increasing ID so we can loop over it in the frontend
         payouts[currentPayoutIndex] = Payout({
             date: now,
             totalValue: totalToPayout,
