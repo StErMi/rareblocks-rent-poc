@@ -182,6 +182,9 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // Check if the user was the owner of the tokenId
         require(tokenOwners[tokenId] == msg.sender, "NOT_TOKEN_OWNER");
 
+        // Token can not be unstaked within 30 days after staking to make it fair for everyone
+        require(tokenStakeDate[tokenId] + 30 days > now, "STAKE_STILL_TIME_LOCKED")
+
         // Reset the owner of the token
         delete tokenOwners[tokenId];
 
