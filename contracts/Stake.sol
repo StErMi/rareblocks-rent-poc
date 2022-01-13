@@ -47,9 +47,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @notice number of token eligible only for the next cycle of payout
     uint256 public totalStakedTokenNextCycle;
 
-    /// @notice shares owned by an address
-    mapping(address => uint256) public userStakes;
-
     /// @notice token owned by stakers
     mapping(uint256 => UserStake) public stakes;
 
@@ -166,9 +163,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // update the user's stake information
         stakes[tokenId] = UserStake({owner: msg.sender, stakeTime: block.timestamp});
 
-        // Add a share to the account
-        userStakes[msg.sender] += 1;
-
         // Emit the stake event
         emit Staked(msg.sender, tokenId);
 
@@ -193,9 +187,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
         // Reset the stake information
         delete stakes[tokenId];
-
-        // Decrease the number of staked tokens owned by the user
-        userStakes[msg.sender] -= 1;
 
         // Emit the unstake event
         emit Unstaked(msg.sender, tokenId);
