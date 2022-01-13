@@ -50,6 +50,9 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @notice token owned by stakers
     mapping(uint256 => UserStake) public stakes;
 
+    /// @notice
+    uint256 private balanceNextPayout;
+
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -203,14 +206,14 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice Get the total balance owed to stakers
     /// @return The balance withdrawable by stakers
-    function getStakedBalance() public view returns (uint256) {
+    function getNextPayoutBalance() public view returns (uint256) {
         uint256 stakerBalanceOnRent = 0;
 
         // Contract can start with rent contract not initialized
         if (address(rent) != address(0)) {
             stakerBalanceOnRent = rent.stakerBalance();
         }
-        return address(this).balance + stakerBalanceOnRent;
+        return balanceNextPayout + stakerBalanceOnRent;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -249,11 +252,11 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // otherwise this will fail (probably it's useless because it should go in panic error because of div by zero)
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
 
-        // Pulls funds from the Rent contract
+        // Pulls funds from the Rent contract, balanceNextPayout should be updated
         rent.stakerPayout();
 
         // get the updated balance of the stake contract
-        uint256 balanceSnapshot = address(this).balance;
+        uint256 balanceSnapshot = balanceNextPayout;
 
         // Create the payout with the current snapshot
         uint256 currentPayoutID = payoutId;
@@ -283,6 +286,9 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
             totalStakedToken,
             claimablePerStake
         );
+
+        // Reset the balance for the next payout
+        balanceNextPayout = 0;
 
         return currentPayoutID;
     }
@@ -331,5 +337,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     receive() external payable {
         // Accept payments only from the rent contract
         require(msg.sender == address(rent), "ONLY_FROM_RENT");
+
+        balanceNextPayout += msg.value;
     }
 }
