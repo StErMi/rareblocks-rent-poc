@@ -258,6 +258,9 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // get the updated balance of the stake contract
         uint256 balanceSnapshot = balanceNextPayout;
 
+        // check if we have at least some balance for stakers claims
+        require(balanceNextPayout != 0, "NO_PAYOUT_BALANCE");
+
         // Create the payout with the current snapshot
         uint256 currentPayoutID = payoutId;
         uint256 claimablePerStake = balanceSnapshot / totalStakedToken;
