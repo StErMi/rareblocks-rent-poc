@@ -97,95 +97,53 @@ describe('Stake Contract', () => {
 
   describe('Test stake()', () => {
     it("stake a token you don't own", async () => {
-      const sharePrice = await stake.getSharePrice();
-      const tx = stake.connect(staker1).stake(1, {value: sharePrice});
+      const tx = stake.connect(staker1).stake(1);
 
       await expect(tx).to.be.revertedWith('TOKEN_NOT_OWNED');
     });
     it('stake a token you that does not exist', async () => {
-      const sharePrice = await stake.getSharePrice();
-      const tx = stake.connect(staker1).stake(1000, {value: sharePrice});
+      const tx = stake.connect(staker1).stake(1000);
 
       await expect(tx).to.be.revertedWith('ERC721: owner query for nonexistent token');
     });
     it('stake a token that the owner does not have approved yet to be transferred to the stake contract', async () => {
-      const sharePrice = await stake.getSharePrice();
       await rareBlocks.connect(staker1).mint(staker1.address, 1, {value: ethers.utils.parseEther('0.08')});
-      const tx = stake.connect(staker1).stake(22, {value: sharePrice});
+      const tx = stake.connect(staker1).stake(22);
 
       await expect(tx).to.be.revertedWith('ERC721: transfer caller is not owner nor approved');
     });
-    it('stake it when totalShare = 0 -> sharePrice 0', async () => {
+    it('stake again a token (Stake is the new owner)', async () => {
       const tokenID = 16;
-      const sharePrice = 0;
+      await stake.connect(staker1).stake(tokenID);
+      const tx = stake.connect(staker1).stake(tokenID);
 
-      const totalSharesBefore = await stake.totalShares();
-      const userSharesBefore = await stake.userShares(staker1.address);
-      const tokenOwnersBefore = await stake.tokenOwners(tokenID);
+      await expect(tx).to.be.revertedWith('TOKEN_NOT_OWNED');
+    });
+    it('stake it when payoutID is 0', async () => {
+      const tokenID = 16;
+      const totalStakedTokenBefore = await stake.totalStakedToken();
+      const totalStakedTokenNextCycle = await stake.totalStakedTokenNextCycle();
+      const nowInSeconds = new Date().getTime() / 1000;
 
-      const tx = stake.connect(staker1).stake(tokenID, {value: 0});
+      const tx = stake.connect(staker1).stake(tokenID);
 
       // Event is correctly emitted
-      await expect(tx).to.emit(stake, 'Staked').withArgs(staker1.address, tokenID, sharePrice);
+      await expect(tx).to.emit(stake, 'Staked').withArgs(staker1.address, tokenID);
 
-      // Number of shares is updated
-      expect(await stake.totalShares()).to.eq(totalSharesBefore.add(1));
+      // Number of totalStakedTokenBefore is updated
+      expect(await stake.totalStakedToken()).to.eq(totalStakedTokenBefore.add(1));
 
-      // Shares of the user is updated
-      expect(await stake.userShares(staker1.address)).to.eq(userSharesBefore.add(1));
+      // Number of totalStakedTokenNextCycle is the same
+      expect(await stake.totalStakedTokenNextCycle()).to.eq(totalStakedTokenNextCycle);
 
-      // Shares of the user is updated
-      expect(tokenOwnersBefore).to.eq(ethers.constants.AddressZero);
-      expect(await stake.tokenOwners(tokenID)).to.eq(staker1.address);
+      // Stake of the user has been updated
+
+      const userStakeBefore = await stake.stakes(tokenID);
+      expect(userStakeBefore.stakeTime.toNumber()).to.be.gt(nowInSeconds);
+      expect(userStakeBefore.owner).to.eq(staker1.address);
 
       // Check that the owner of the token is the staker
       expect(await rareBlocks.ownerOf(tokenID)).to.eq(stake.address);
-    });
-
-    it('stake it when totalShare = 0 -> sharePrice 0', async () => {
-      console.log(`[start] totalShares: ${await stake.totalShares()} | sharePrice: ${await stake.getSharePrice()}`);
-
-      // staker1 stake a token
-      await stake.connect(staker1).stake(16, {value: await stake.getSharePrice()});
-
-      console.log(
-        `[staker1 staked 1 token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
-
-      // staker2 stake a token
-      await stake.connect(staker2).stake(17, {value: await stake.getSharePrice()});
-
-      console.log(
-        `[staker2 staked 1 token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
-
-      // renter 1 rent a pass
-      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1')});
-
-      console.log(
-        `[renter1 rented a pass for 1ETH] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
-
-      // staker3 stake a token
-      await stake.connect(staker3).stake(19, {value: await stake.getSharePrice()});
-      console.log(
-        `[staker3 staked a token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
-
-      await stake.connect(staker1).unstake(16);
-      console.log(
-        `[staker1 unstaked token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
     });
   });
 });
