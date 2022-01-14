@@ -158,6 +158,30 @@ describe('Stake Contract', () => {
       // Check that the owner of the token is the staker
       expect(await rareBlocks.ownerOf(tokenID)).to.eq(stake.address);
     });
+
+    it('stake it when first payout has been done goes to next cycle', async () => {
+      // stake at least one otherwise we cannot do a payout
+      await stake.connect(staker1).stake(16);
+
+      // Do a rent
+      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1')});
+
+      // create a payout
+      await stake.connect(owner).createPayout();
+
+      const totalStakedTokenBefore = await stake.totalStakedToken();
+      const totalStakedTokenNextCycle = await stake.totalStakedTokenNextCycle();
+
+      // stake after first payout
+      await stake.connect(staker2).stake(17);
+
+      // Because this user has staked after the first payout but before the second is only elegible from the third one up
+      // Number of totalStakedTokenBefore is updated
+      expect(await stake.totalStakedToken()).to.eq(totalStakedTokenBefore);
+
+      // Number of totalStakedTokenNextCycle is the same
+      expect(await stake.totalStakedTokenNextCycle()).to.eq(totalStakedTokenNextCycle.add(1));
+    });
   });
 
   describe('Test unstake()', () => {
