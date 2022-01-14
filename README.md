@@ -26,3 +26,7 @@ can I just check if payoutID = 0 or stake.stakeTime < payouts[payoutID-1].payout
 - [ ] Add a way to allow renting only if there's enough staked token
 - [ ] is there a way to cumulate the staker's payout in order to save gas?
 - [ ] add more utility functions to calc staker's total?
+
+# BRAIN DUMP
+
+I can maintain a mapping of user's owned token `mapping(address => uint256[])` to allow the user to easily pull the payoutIds[]?
