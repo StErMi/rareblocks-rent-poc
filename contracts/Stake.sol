@@ -5,11 +5,14 @@ import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./mocks/RareBlocks.sol";
 import "./interfaces/IRent.sol";
 
 contract Stake is IERC721Receiver, Ownable, Pausable {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     /*///////////////////////////////////////////////////////////////
                              STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
@@ -28,6 +31,15 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice token owned by stakers
     mapping(uint256 => address) public tokenOwners;
+
+    /// @notice Set of stakers
+    EnumerableSet.AddressSet private stakers;
+
+    /// @notice Total accrued claims to be distributed to stakers
+    uint256 public totalAccruedClaimAmount;
+
+    /// @notice User claims to be redemed
+    mapping(address => uint256) public userClaims;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
@@ -50,23 +62,12 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     function onERC721Received(
-        address operator,
-        address from,
-        uint256 tokenId,
+        address,
+        address,
+        uint256,
         bytes calldata
     ) external view override returns (bytes4) {
-        // console.log(">>>>>>>> onERC721Received");
         require(msg.sender == address(rareblocks), "SENDER_NOT_RAREBLOCKS");
-
-        // console.log("msg.sender -> ", msg.sender);
-        // console.log("address(rareBlock) -> ", address(rareBlock));
-        // console.log("operator -> ", operator);
-        // console.log("from -> ", from);
-        // console.log("tokenId -> ", tokenId);
-
-        // in this case there should not be any stake record for this token, nor rent open
-        // _createStake(from, tokenId, 0, false);
-
         return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
     }
 
@@ -134,7 +135,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @param user The authorized user who triggered the unstake
     /// @param tokenId The tokenId unstaked
     /// @param sharePrice The share price sent to the user
-    event Unstaked(address indexed user, uint256 tokenId, uint256 sharePrice);
+    /// @param claimAmount The amount of accrued claim amount withdrawn with stake
+    event Unstaked(address indexed user, uint256 tokenId, uint256 sharePrice, uint256 claimAmount);
 
     /// @notice Stake a RareBlocks pass and pay to get a staking share
     /// @param tokenId The RareBlocks tokenId to stake
@@ -162,6 +164,9 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // Remember the token owner for the unstake process
         tokenOwners[tokenId] = msg.sender;
 
+        // Add the user to the set of stakers
+        stakers.add(msg.sender);
+
         // Emit the stake event
         emit Staked(msg.sender, tokenId, sharePrice);
 
@@ -187,15 +192,31 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // Decrease the total share count
         totalShares -= 1;
 
+        // remove the user from the list of stakers if he does not own 0 shares
+        if (userShares[msg.sender] == 0) {
+            stakers.remove(msg.sender);
+        }
+
+        // get the userClaim amount
+        uint256 claimAmount = userClaims[msg.sender];
+
+        if (claimAmount != 0) {
+            // update the user claims
+            userClaims[msg.sender] = 0;
+
+            // update total accrued claim
+            totalAccruedClaimAmount -= claimAmount;
+        }
+
         // Emit the unstake event
-        emit Unstaked(msg.sender, tokenId, sharePrice);
+        emit Unstaked(msg.sender, tokenId, sharePrice, claimAmount);
 
         // Send the token to the user
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
 
         // Send the share value to the user
-        (bool success, ) = msg.sender.call{value: sharePrice}("");
-        require(success, "PAYOUT_FAIL");
+        (bool success, ) = msg.sender.call{value: (sharePrice + claimAmount)}("");
+        require(success, "UNSTAKE_PAYOUT_FAIL");
     }
 
     /// @notice Get the total balance owed to stakers
@@ -207,12 +228,84 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         if (address(rent) != address(0)) {
             stakerBalanceOnRent = rent.stakerBalance();
         }
-        return address(this).balance + stakerBalanceOnRent;
+        return address(this).balance + stakerBalanceOnRent - totalAccruedClaimAmount;
     }
 
     /*///////////////////////////////////////////////////////////////
                              SHARE / PAYOUT LOGIC
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice Emitted after the user has withdrawn a claim
+    /// @param user The authorized user who withdrawn the claim
+    /// @param claimAmount The total claim amount withdrawn by the user
+    event ClaimWithdraw(address indexed user, uint256 claimAmount);
+
+    /// @notice Emitted after a user has distributed share claims to the stakers
+    /// @param user The authorized user who distributed the shares to the stakers
+    /// @param sharePrice The share price at the moment of distribution
+    /// @param claimAmountDistributed The total amount the user can claim from this distribution
+    event DistributeClaims(address indexed user, uint256 sharePrice, uint256 claimAmountDistributed);
+
+    /// @notice Allow the user to claim a distributed share reward if available
+    function withdrawClaim() external {
+        // check if the user has claims
+        uint256 claimAmount = userClaims[msg.sender];
+        require(claimAmount != 0, "NO_CLAIM_TO_WITHDRAW");
+
+        // update the user claims
+        userClaims[msg.sender] = 0;
+
+        // update total accrued claim
+        totalAccruedClaimAmount -= claimAmount;
+
+        // emit the event
+        emit ClaimWithdraw(msg.sender, claimAmount);
+
+        // Send claim to the user
+        (bool success, ) = msg.sender.call{value: claimAmount}("");
+        require(success, "CLAIM_PAYOUT_FAIL");
+    }
+
+    /// @notice Allow the owner to distribute the current share value to stakers resetting the share value
+    /// @dev I need to loop throw the list of stakers, know how many stakes they have and distribute to them
+    /// @dev because RareBlocks have a max cap of 500 it could be safe to do that in a loop (gas revert problem)
+    function distributeClaims() external onlyOwner {
+        // if there's no staker just revert
+        require(totalShares != 0, "NO_STAKERS");
+
+        // Pull the balance from the rent contract if there's any left
+        uint256 rentBalance = rent.stakerBalance();
+        if (rentBalance != 0) {
+            rent.stakerPayout();
+        }
+
+        // check if after pulling balance from the rent contract there's still balance
+        // left to distribute to stakers
+        uint256 availableBalance = address(this).balance - totalAccruedClaimAmount;
+        require(availableBalance != 0, "NO_BALANCE_TO_DISTRIBUTE");
+
+        // calc locally the value to distribute to addresses
+        uint256 claimValue = availableBalance / totalShares;
+
+        // loop all the stakers
+        uint256 accumulatedClaims = 0;
+        address[] memory stakersSet = stakers.values();
+        uint256 stakersCount = stakersSet.length;
+        for (uint256 i = 0; i < stakersCount; i++) {
+            address stakerAddress = stakersSet[i];
+            if (stakerAddress != address(0)) {
+                uint256 totalClaim = claimValue * userShares[stakerAddress];
+                userClaims[stakerAddress] += totalClaim;
+                accumulatedClaims += totalClaim;
+            }
+        }
+
+        // update the total amount claimable by the users
+        totalAccruedClaimAmount += accumulatedClaims;
+
+        // emit the event
+        emit DistributeClaims(msg.sender, claimValue, accumulatedClaims);
+    }
 
     function getSharePrice() public view returns (uint256) {
         if (totalShares == 0) return 0;
