@@ -47,6 +47,8 @@ describe('Stake Contract', () => {
     tresuryAddress: null,
   };
 
+  const STAKE_LOCK_PERIOD = 60 * 60 * 24 * 31; // 1 month
+
   beforeEach(async () => {
     [owner, tresury, staker1, staker2, staker3, staker4, renter1, renter2, ...addrs] = await ethers.getSigners();
 
@@ -132,55 +134,65 @@ describe('Stake Contract', () => {
 
       await expect(tx).to.be.revertedWith('Pausable: paused');
     });
-    it('stake it when payoutID is 0', async () => {
-      const tokenID = 16;
-      const totalStakedTokenBefore = await stake.totalStakedToken();
-      const totalStakedTokenNextCycle = await stake.totalStakedTokenNextCycle();
-      const nowInSeconds = new Date().getTime() / 1000;
 
+    it('stake a token that is still locked because of unstake should fail', async () => {
+      const tokenID = 16;
+      await stake.connect(staker1).stake(tokenID);
+
+      // let 1 month pass and unstake it
+      increaseWorldTimeInSeconds(STAKE_LOCK_PERIOD, true);
+      await stake.connect(staker1).unstake(tokenID);
+
+      // try to stake it again
       const tx = stake.connect(staker1).stake(tokenID);
 
-      // Event is correctly emitted
-      await expect(tx).to.emit(stake, 'Staked').withArgs(staker1.address, tokenID);
-
-      // Number of totalStakedTokenBefore is updated
-      expect(await stake.totalStakedToken()).to.eq(totalStakedTokenBefore.add(1));
-
-      // Number of totalStakedTokenNextCycle is the same
-      expect(await stake.totalStakedTokenNextCycle()).to.eq(totalStakedTokenNextCycle);
-
-      // Stake of the user has been updated
-
-      const userStakeBefore = await stake.stakes(tokenID);
-      expect(userStakeBefore.stakeTime.toNumber()).to.be.gt(nowInSeconds);
-      expect(userStakeBefore.owner).to.eq(staker1.address);
-
-      // Check that the owner of the token is the staker
-      expect(await rareBlocks.ownerOf(tokenID)).to.eq(stake.address);
+      // it should fail because the owner has a lock still active
+      await expect(tx).to.be.revertedWith('TOKEN_LOCKED');
     });
 
-    it('stake it when first payout has been done goes to next cycle', async () => {
-      // stake at least one otherwise we cannot do a payout
-      await stake.connect(staker1).stake(16);
+    it('stake unstaked token that changed owner should succed ', async () => {
+      const tokenID = 16;
+      await stake.connect(staker1).stake(tokenID);
 
-      // Do a rent
-      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1')});
+      // let 1 month pass and unstake it
+      increaseWorldTimeInSeconds(STAKE_LOCK_PERIOD, true);
+      await stake.connect(staker1).unstake(tokenID);
 
-      // create a payout
-      await stake.connect(owner).createPayout();
+      // Change ownership (lock is owner-token based)
+      await rareBlocks.connect(staker1).transferFrom(staker1.address, staker2.address, tokenID);
+      await rareBlocks.connect(staker2).approve(stake.address, 16);
 
+      // try to stake it again
+      const now = new Date().getTime() / 1000;
+      await stake.connect(staker2).stake(tokenID);
+
+      // check new stake owner
+      const stakeInfo = await stake.stakes(16);
+
+      // Stake info have been updated
+      expect(stakeInfo.owner).to.eq(staker2.address);
+      expect(stakeInfo.lockExpire.toNumber()).to.gte(now + STAKE_LOCK_PERIOD);
+    });
+
+    it('stake successfully', async () => {
+      const now = new Date().getTime() / 1000;
       const totalStakedTokenBefore = await stake.totalStakedToken();
-      const totalStakedTokenNextCycle = await stake.totalStakedTokenNextCycle();
 
-      // stake after first payout
-      await stake.connect(staker2).stake(17);
+      // stake the token
+      const tx = stake.connect(staker1).stake(16);
 
-      // Because this user has staked after the first payout but before the second is only elegible from the third one up
-      // Number of totalStakedTokenBefore is updated
-      expect(await stake.totalStakedToken()).to.eq(totalStakedTokenBefore);
+      // check if the event have been emitted
+      await expect(tx).to.emit(stake, 'Staked').withArgs(staker1.address, 16);
 
-      // Number of totalStakedTokenNextCycle is the same
-      expect(await stake.totalStakedTokenNextCycle()).to.eq(totalStakedTokenNextCycle.add(1));
+      // number of staked token have been updated
+      expect(await stake.totalStakedToken()).to.eq(totalStakedTokenBefore.add(1));
+
+      // get the stake info
+      const stakeInfo = await stake.stakes(16);
+
+      // Stake info have been updated
+      expect(stakeInfo.owner).to.eq(staker1.address);
+      expect(stakeInfo.lockExpire.toNumber()).to.gte(now + STAKE_LOCK_PERIOD);
     });
   });
 
@@ -203,29 +215,34 @@ describe('Stake Contract', () => {
 
       await expect(tx).to.be.revertedWith('Pausable: paused');
     });
-    it('unstake it when payoutID is 0', async () => {
-      const tokenID = 22;
-      const totalStakedTokenBefore = await stake.totalStakedToken();
-      const totalStakedTokenNextCycle = await stake.totalStakedTokenNextCycle();
 
+    it('unstake a token that is still locked', async () => {
+      const tokenID = 22;
       const tx = stake.connect(staker4).unstake(tokenID);
 
-      // Event is correctly emitted
+      await expect(tx).to.be.revertedWith('TOKEN_LOCKED');
+    });
+
+    it('unstake it correctly', async () => {
+      // let 1 month pass and unstake it
+      increaseWorldTimeInSeconds(STAKE_LOCK_PERIOD, true);
+      const totalStakedTokenBefore = await stake.totalStakedToken();
+      const now = new Date().getTime() / 1000;
+
+      const tokenID = 22;
+      const tx = stake.connect(staker4).unstake(tokenID);
+
       await expect(tx).to.emit(stake, 'Unstaked').withArgs(staker4.address, tokenID);
 
-      // Number of totalStakedTokenBefore is updated
+      // number of staked token have been updated
       expect(await stake.totalStakedToken()).to.eq(totalStakedTokenBefore.sub(1));
 
-      // Number of totalStakedTokenNextCycle is the same
-      expect(await stake.totalStakedTokenNextCycle()).to.eq(totalStakedTokenNextCycle);
+      // get the stake info
+      const stakeInfo = await stake.stakes(tokenID);
 
-      // Stake of the user has been updated
-      const userStakeBefore = await stake.stakes(tokenID);
-      expect(userStakeBefore.stakeTime.toNumber()).to.eq(0);
-      expect(userStakeBefore.owner).to.eq(ethers.constants.AddressZero);
-
-      // Check that the owner of the token is the staker
-      expect(await rareBlocks.ownerOf(tokenID)).to.eq(staker4.address);
+      // Stake info have been updated
+      expect(stakeInfo.owner).to.eq(staker4.address);
+      expect(stakeInfo.lockExpire.toNumber()).to.gte(now + STAKE_LOCK_PERIOD);
     });
   });
 });

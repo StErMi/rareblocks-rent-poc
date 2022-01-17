@@ -11,7 +11,7 @@ import "./interfaces/IRent.sol";
 
 struct UserStake {
     address owner;
-    uint256 stakeTime;
+    uint256 lockExpire;
 }
 
 struct Payout {
@@ -29,6 +29,9 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
                              STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice How many days a user must wait before unstake and stake
+    uint256 public constant STAKE_LOCK_PERIOD = 31 days;
+
     /// @notice Payout identifier
     uint256 public payoutId;
 
@@ -43,9 +46,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice number of token eligible for current payout
     uint256 public totalStakedToken;
-
-    /// @notice number of token eligible only for the next cycle of payout
-    uint256 public totalStakedTokenNextCycle;
 
     /// @notice token owned by stakers
     mapping(uint256 => UserStake) public stakes;
@@ -155,16 +155,20 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // check that the sender owns the token
         require(rareblocks.ownerOf(tokenId) == msg.sender, "TOKEN_NOT_OWNED");
 
-        if (payoutId == 0) {
-            // no payout have been done yet, stakers can directly enter the next payout
-            totalStakedToken += 1;
-        } else {
-            // the current stake will be payed by the next payout cycle
-            totalStakedTokenNextCycle += 1;
-        }
+        // Check if there's a lock on that token for the user
+        UserStake storage stakeInfo = stakes[tokenId];
+
+        // we already know that the token is owned by the user
+        // if the owner of the current stake info is different from the sender it means that it was from the prev owner
+        // and that the token has changed have been transferred between unstake and re-stake
+        // if the owner is the same check the lock period
+        require(stakeInfo.owner != msg.sender || stakeInfo.lockExpire < block.timestamp, "TOKEN_LOCKED");
+
+        totalStakedToken += 1;
 
         // update the user's stake information
-        stakes[tokenId] = UserStake({owner: msg.sender, stakeTime: block.timestamp});
+        stakeInfo.owner = msg.sender;
+        stakeInfo.lockExpire = block.timestamp + STAKE_LOCK_PERIOD;
 
         // Emit the stake event
         emit Staked(msg.sender, tokenId);
@@ -178,30 +182,24 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @dev -------> TODO if the user unstake without gathering all the payouts those funds will be stuck forever
     /// @dev should the user be able to unstake even if the contract is paused?
     function unstake(uint256 tokenId) external whenNotPaused {
+        UserStake storage stakeInfo = stakes[tokenId];
+
         // Check if the user was the owner of the tokenId
         require(stakes[tokenId].owner == msg.sender, "NOT_TOKEN_OWNER");
 
-        if (payoutId == 0 || stakes[tokenId].stakeTime < payouts[payoutId].payoutTime) {
-            // there has been no payout yet or user has staked before the last payout
-            totalStakedToken -= 1;
-        } else {
-            totalStakedTokenNextCycle -= 1;
-        }
+        // allow unstake only if the lock has expired
+        require(stakeInfo.lockExpire < block.timestamp, "TOKEN_LOCKED");
 
-        // Reset the stake information
-        delete stakes[tokenId];
+        // update the lock period for next stake
+        stakeInfo.lockExpire = block.timestamp + STAKE_LOCK_PERIOD;
+
+        totalStakedToken -= 1;
 
         // Emit the unstake event
         emit Unstaked(msg.sender, tokenId);
 
         // Send the token to the user
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
-    }
-
-    /// @notice Get the total amount of staked tokens
-    /// @return The total amount of staked tokens
-    function getTotalStakedTokens() public view returns (uint256) {
-        return totalStakedToken + totalStakedTokenNextCycle;
     }
 
     /// @notice Get the total balance owed to stakers
@@ -276,10 +274,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // increase the payout ID
         payoutId += 1;
 
-        // move the next cycle token payout to the total staked token count and reset it
-        totalStakedToken += totalStakedTokenNextCycle;
-        totalStakedTokenNextCycle = 0;
-
         // emit the payout cration event
         emit PayoutCreated(
             msg.sender,
@@ -312,12 +306,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
         // Check if the payout exists
         require(payout.payoutTime != 0, "PAYOUT_NOT_FOUND");
-
-        // Check if the stake is eligible for the payout
-        // At this point we know the user has staked the token
-        // if the payoutId is 0 it means it's the first one so he's in the batch for sure
-        // otherwise we check that the stake was staked before the previous payout
-        require(payoutId == 0 || stakeInfo.stakeTime < payouts[_payoutId - 1].payoutTime, "STAKE_TIME_NOT_ELIGIBLE");
 
         // check if the user has not already claimed
         require(!payout.done[tokenId], "CLAIM_ALREADY_SENT");

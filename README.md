@@ -1,3 +1,23 @@
+# CHANGELOG
+
+## Lock mechanism
+
+With the current update I introduced a lock mechanism for stake/unstake. If the user stake a token it can be unstaked only after 31 days.
+After unstake that user for the same token can only stake it again after 31 days.
+If the token change the owner after unstake (sold), the new owner can stake it again without any delay.
+
+Now if the current owner unstake it before claiming all the payouts it can still claim them without problem.
+BUT if he sell the token, the new owner can stake the token and claim the unclaimed payouts from the prev user.
+
+### Side problem
+
+User could stake -> wait -> unstake and now transfer to another account to stake again skipping the lock period.
+This is to take in consideration.
+
+## Removed checks of stake timing to be elegible for the payout
+
+Now user that have staked BEFORE the payout (even 1 sec) are elegible for the payout. (see the stake/unstake lock mechanism)
+
 # Trade offs compared to the shares mechanism
 
 The payout solutions has some problem compared to the shares mechanism.
