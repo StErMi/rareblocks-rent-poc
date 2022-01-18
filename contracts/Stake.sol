@@ -231,9 +231,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     }
 
     function claimPayout(uint256 payoutId) external {
-        // Check if user owns this token
-        require(tokenOwners[tokenId] == msg.sender, "NOT_TOKEN_OWNER");
-
         // Get the selected Payout by payoutId
         uint256 payout = payouts[payoutId];
 
