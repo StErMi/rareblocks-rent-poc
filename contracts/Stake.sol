@@ -5,6 +5,7 @@ import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./mocks/RareBlocks.sol";
 import "./interfaces/IRent.sol";
@@ -14,29 +15,20 @@ struct UserStake {
     uint256 lockExpire;
 }
 
-struct Payout {
-    uint256 balance;
-    uint256 payoutTime;
-    uint256 totalStakes;
-    /// @dev can we create an external mapping for this? like mapping(kekkak(payoutid_tokenid)=>bool) claims;
-    /// instead of having inside the payout?
-    mapping(uint256 => bool) done;
-    uint256 claimablePerStake;
+struct UserInfo {
+    uint256 stakes;
+    uint256 amountClaimable;
 }
 
 contract Stake is IERC721Receiver, Ownable, Pausable {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     /*///////////////////////////////////////////////////////////////
                              STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
     /// @notice How many days a user must wait before unstake and stake
     uint256 public constant STAKE_LOCK_PERIOD = 31 days;
-
-    /// @notice Payout identifier
-    uint256 public payoutId;
-
-    /// @notice History of payouts
-    mapping(uint256 => Payout) public payouts;
 
     /// @notice RareBlocks contract reference
     RareBlocks private rareblocks;
@@ -52,6 +44,15 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice
     uint256 private balanceNextPayout;
+
+    /// @notice Set of stakers
+    EnumerableSet.AddressSet private stakers;
+
+    /// @notice Total accrued claims to be distributed to stakers
+    uint256 public totalAccruedClaimAmount;
+
+    /// @notice User claims to be redemed
+    mapping(address => UserInfo) public userInfos;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
@@ -150,7 +151,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice Stake a RareBlocks pass and pay to get a staking share
     /// @param tokenId The RareBlocks tokenId to stake
-    /// @dev -------> TODO should if (payoutId == 0) be replaced by if (payoutId == 0 && getStakedBalance() == 0?)
     function stake(uint256 tokenId) external whenNotPaused {
         // check that the sender owns the token
         require(rareblocks.ownerOf(tokenId) == msg.sender, "TOKEN_NOT_OWNED");
@@ -170,6 +170,12 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         stakeInfo.owner = msg.sender;
         stakeInfo.lockExpire = block.timestamp + STAKE_LOCK_PERIOD;
 
+        // Add the user to the set of stakers
+        stakers.add(msg.sender);
+
+        // update the user info
+        userInfos[msg.sender].stakes += 1;
+
         // Emit the stake event
         emit Staked(msg.sender, tokenId);
 
@@ -179,7 +185,6 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice Unstake a RareBlocks pass and get paid what is owed to you
     /// @param tokenId The RareBlocks tokenId to unstake
-    /// @dev -------> TODO if the user unstake without gathering all the payouts those funds will be stuck forever
     /// @dev should the user be able to unstake even if the contract is paused?
     function unstake(uint256 tokenId) external whenNotPaused {
         UserStake storage stakeInfo = stakes[tokenId];
@@ -194,6 +199,14 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         stakeInfo.lockExpire = block.timestamp + STAKE_LOCK_PERIOD;
 
         totalStakedToken -= 1;
+
+        // update the user info
+        userInfos[msg.sender].stakes -= 1;
+
+        // remove the user from the list of stakers if he does not own 0 shares
+        if (userInfos[msg.sender].stakes == 0) {
+            stakers.remove(msg.sender);
+        }
 
         // Emit the unstake event
         emit Unstaked(msg.sender, tokenId);
@@ -218,36 +231,46 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
                              PAYOUT LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted after the owner has created a Payout snapshot
+    /// @notice Emitted after the staker has claimed the payout distributed
+    /// @param user The authorized staker that has claimed the payout
+    /// @param claimedAmount The amount claimed
+    event MassPayoutClaimed(address indexed user, uint256 claimedAmount);
+
+    /// @notice Emitted after the owner has distributed the payout to stakers balance
     /// @param user The authorized user who triggered the payout creation
-    /// @param payoutId The ID of the payout
-    /// @param payoutBalance The balance of the payout
-    /// @param payoutTime The timestamp creation of the payout
-    /// @param totalStakes The total number of staked token eligible for the payout
-    /// @param claimablePerStake The amount of ETH that a token owner can claim per token
-    event PayoutCreated(
+    /// @param payoutAmount The total amount distributed to stakers
+    /// @param stakersCount The amount of stakers at payout time
+    /// @param stakesCount The amount of token staked at payout time
+    /// @param claimablePerStake The amount clamimable for each stake
+    event MassPayoutDistributed(
         address indexed user,
-        uint256 indexed payoutId,
-        uint256 payoutBalance,
-        uint256 payoutTime,
-        uint256 totalStakes,
+        uint256 payoutAmount,
+        uint256 stakersCount,
+        uint256 stakesCount,
         uint256 claimablePerStake
     );
 
-    /// @notice Emitted after the staker has claimed the payout for a token
-    /// @param user The authorized user who triggered the payout creation
-    /// @param payoutId The ID of the payout
-    /// @param tokenId The ID of the token
-    /// @param claimAmount The amount sent to the staker
-    event PayoutClaimed(address indexed user, uint256 indexed payoutId, uint256 indexed tokenId, uint256 claimAmount);
+    function claimMassPayout() external {
+        UserInfo storage userInfo = userInfos[msg.sender];
 
-    /// @notice Create a new Payout snapshot
-    /// @return The ID of the payout snapshot created
-    /// @dev can I remove the require given that the tx should revert because of panic error (division by zero)
-    function createPayout() external onlyOwner whenNotPaused returns (uint256) {
-        // because at the moment users can rent even without token staked
-        // we need to check if there's at least one staked token before creating the payout
-        // otherwise this will fail (probably it's useless because it should go in panic error because of div by zero)
+        uint256 claimableAmount = userInfo.amountClaimable;
+
+        // check if the user has any payout
+        require(claimableAmount != 0, "NO_PAYOUT_BALANCE");
+
+        // reset the claimable amount
+        userInfo.amountClaimable = 0;
+
+        // emit the event
+        emit MassPayoutClaimed(msg.sender, claimableAmount);
+
+        // Transfer to the staker
+        (bool success, ) = msg.sender.call{value: claimableAmount}("");
+        require(success, "CLAIM_FAIL");
+    }
+
+    function distributeMassPayout() external onlyOwner {
+        // if there's no staker just revert
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
 
         // Pulls funds from the Rent contract, balanceNextPayout should be updated
@@ -259,66 +282,26 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // check if we have at least some balance for stakers claims
         require(balanceNextPayout != 0, "NO_PAYOUT_BALANCE");
 
-        // Create the payout with the current snapshot
-        uint256 currentPayoutID = payoutId;
+        // calc the amount claimable for each stake
         uint256 claimablePerStake = balanceSnapshot / totalStakedToken;
-        uint256 payoutTime = block.timestamp;
 
-        // have to use this syntax because of nested mapping
-        Payout storage newPayout = payouts[currentPayoutID];
-        newPayout.balance = balanceSnapshot;
-        newPayout.payoutTime = payoutTime;
-        newPayout.totalStakes = totalStakedToken;
-        newPayout.claimablePerStake = claimablePerStake;
-
-        // increase the payout ID
-        payoutId += 1;
-
-        // emit the payout cration event
-        emit PayoutCreated(
-            msg.sender,
-            currentPayoutID,
-            balanceSnapshot,
-            payoutTime,
-            totalStakedToken,
-            claimablePerStake
-        );
+        // loop all the stakers
+        address[] memory stakersSet = stakers.values();
+        uint256 stakersCount = stakersSet.length;
+        for (uint256 i = 0; i < stakersCount; i++) {
+            address stakerAddress = stakersSet[i];
+            if (stakerAddress != address(0)) {
+                UserInfo storage userInfo = userInfos[stakerAddress];
+                uint256 totalClaim = claimablePerStake * userInfo.stakes;
+                userInfo.amountClaimable += totalClaim;
+            }
+        }
 
         // Reset the balance for the next payout
         balanceNextPayout = 0;
 
-        return currentPayoutID;
-    }
-
-    /// @notice Send the claim of a payout to an elegible staker
-    /// @param _payoutId The ID of the Payout
-    /// @param tokenId The ID of the Token
-    /// @dev We should really batle test this to understand if there's a reason to drain the payout / contract balance
-    function claimTokenPayout(uint256 _payoutId, uint256 tokenId) external {
-        // Get the stake info
-        UserStake memory stakeInfo = stakes[tokenId];
-
-        // Check if the sender is also the stake owner
-        require(stakeInfo.owner == msg.sender, "NOT_TOKEN_OWNER");
-
-        // Get the payout info
-        Payout storage payout = payouts[_payoutId];
-
-        // Check if the payout exists
-        require(payout.payoutTime != 0, "PAYOUT_NOT_FOUND");
-
-        // check if the user has not already claimed
-        require(!payout.done[tokenId], "CLAIM_ALREADY_SENT");
-
-        // Update the payout info
-        payout.done[tokenId] = true;
-
-        // Transfer to the staker
-        (bool success, ) = stakeInfo.owner.call{value: payout.claimablePerStake}("");
-        require(success, "CLAIM_FAIL");
-
-        // Emit the payout event
-        emit PayoutClaimed(msg.sender, _payoutId, tokenId, payout.claimablePerStake);
+        // emit the event
+        emit MassPayoutDistributed(msg.sender, balanceNextPayout, stakersCount, totalStakedToken, claimablePerStake);
     }
 
     /*///////////////////////////////////////////////////////////////

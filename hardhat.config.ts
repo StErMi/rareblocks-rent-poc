@@ -43,6 +43,12 @@ const config: HardhatUserConfig = {
       url: process.env.RENKEBY_URL || '',
       accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
+    hardhat: {
+      accounts: {
+        mnemonic: 'test test test test test test test test test test test junk',
+        count: 600,
+      },
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
