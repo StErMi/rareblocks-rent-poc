@@ -38,7 +38,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @notice struct for divident payout
     struct Payout {
         uint256 date; // Payout date
-        mapping(uint256 => bool) claimedBy; // TokenIds who claimed this payout already
+        mapping(address => bool) claimedBy; // TokenIds who claimed this payout already
         uint256 totalValue; // Total value of this payout
         uint256 claimablePerToken; // Amount claimable per staked token
         uint256 totalClaimed; // Count how many value has been claimed to date
@@ -220,7 +220,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         payouts[currentPayoutIndex] = Payout({
             date: now,
             totalValue: totalToPayout,
-            claimablePerToken: totalToPayout / getTotalStakedTokens()
+            claimablePerToken: totalToPayout / getTotalStakedTokens()  // Gets total token staked on this Payout creation date
         })
 
         // Increase payout index
@@ -230,7 +230,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         valueNotDivided = 0;
     }
 
-    function claimPayout(uint256 payoutId, uint256 tokenId) external {
+    function claimPayout(uint256 payoutId) external {
         // Check if user owns this token
         require(tokenOwners[tokenId] == msg.sender, "NOT_TOKEN_OWNER");
 
@@ -238,22 +238,36 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         uint256 payout = payouts[payoutId];
 
         // Check if user has already claimed reward for this token
-        require(!payout.claimedBy[tokenId], "REWARD_CLAIMED_ALREADY")
+        require(!payout.claimedBy[msg.sender], "REWARD_CLAIMED_ALREADY")
 
         // Check if the payout doesnt pay more than the total. Protection against draining the funding
         require(payout.totalValue > payout.totalClaimed, "PAYOUT_IS_EMPTY");
+
+        // Amount of tokens owned by sender and staked before payout date
+        uint256 tokenAmountEligableForPayout = 0; 
         
-        // Get the date when token was staked
-        uint256 tokenStakeDate = tokenStakeDate[tokenId];
+        // Get total minted rareblocks
+        uint256 totalMintedNfts = rareblocks.getTokenCount(); 
+
+        // Loop through amount of minted NFTs
+        for (uint256 i = 0; i < totalMintedNfts; i++) {
+             // Check if tokenId is staked by sender
+            if(tokenOwners[i] === msg.sender){
+                // Check if tokenId is staked before payout date
+                if(tokenStakeDate[i] < payout.date){
+                    tokenAmountEligableForPayout += 1;
+                }
+            }
+        }
         
         // If token was staked after payout created, than not eligable for payout
-        require(payout.date > tokenStakeDate, "NOT_ELIGABLE");
+        require(tokenAmountEligableForPayout > 0, "NOT_ELIGABLE");
 
-        // Get payable amount per staked token
-        uint256 payoutAmount = payout.claimablePerToken;
+        // Get payable amount per staked token times the amount of tokens staked by sender before payout date
+        uint256 payoutAmount = payout.claimablePerToken * tokenAmountEligableForPayout;
 
         // Save tokenId to make sure they cannot claim this again with this tokenId
-        payout.claimedBy[tokenId] = true;
+        payout.claimedBy[msg.sender] = true;
 
         // Increase count of total payout for the payout
         payout.totalClaimed += payoutAmount;
@@ -269,7 +283,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     receive() external payable {
         // Accept payments only from the rent contract
-        valueNotDivided = += msg.value; // Keep track of value received and hasn't been part of a divident payout yet
         require(msg.sender == address(rent), "ONLY_FROM_RENT");
+        valueNotDivided = += msg.value; // Keep track of value received and hasn't been part of a divident payout yet
     }
 }
