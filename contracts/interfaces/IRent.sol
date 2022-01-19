@@ -7,5 +7,6 @@ interface IRent {
     function stakerBalance() external view returns (uint256);
 
     /// @notice Withdraw funds from the contract to the staker addresss
+    /// @dev everyone can call this function. Maybe there should be an incentive to this?
     function stakerPayout() external;
 }

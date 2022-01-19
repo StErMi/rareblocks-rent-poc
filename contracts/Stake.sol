@@ -214,9 +214,19 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // Send the token to the user
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
 
-        // Send the share value to the user
-        (bool success, ) = msg.sender.call{value: (sharePrice + claimAmount)}("");
-        require(success, "UNSTAKE_PAYOUT_FAIL");
+        uint256 totalAmount = sharePrice + claimAmount;
+
+        // send share value back to the user only if it has value
+        if (totalAmount != 0) {
+            // check if the stake contract have balance otherwise pull it from the Rent contract
+            if (address(this).balance < totalAmount) {
+                rent.stakerPayout();
+            }
+
+            // Send the share value to the user
+            (bool success, ) = msg.sender.call{value: totalAmount}("");
+            require(success, "UNSTAKE_PAYOUT_FAIL");
+        }
     }
 
     /// @notice Get the total balance owed to stakers
@@ -260,6 +270,11 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
         // emit the event
         emit ClaimWithdraw(msg.sender, claimAmount);
+
+        // check if the stake contract have balance otherwise pull it from the Rent contract
+        if (address(this).balance < claimAmount) {
+            rent.stakerPayout();
+        }
 
         // Send claim to the user
         (bool success, ) = msg.sender.call{value: claimAmount}("");
