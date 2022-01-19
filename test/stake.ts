@@ -143,49 +143,19 @@ describe('Stake Contract', () => {
     });
 
     it('stake it when totalShare = 0 -> sharePrice 0', async () => {
-      console.log(`[start] totalShares: ${await stake.totalShares()} | sharePrice: ${await stake.getSharePrice()}`);
-
       // staker1 stake a token
       await stake.connect(staker1).stake(16, {value: await stake.getSharePrice()});
-
-      console.log(
-        `[staker1 staked 1 token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
 
       // staker2 stake a token
       await stake.connect(staker2).stake(17, {value: await stake.getSharePrice()});
 
-      console.log(
-        `[staker2 staked 1 token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
-
       // renter 1 rent a pass
       await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1')});
 
-      console.log(
-        `[renter1 rented a pass for 1ETH] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
-
       // staker3 stake a token
       await stake.connect(staker3).stake(19, {value: await stake.getSharePrice()});
-      console.log(
-        `[staker3 staked a token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
 
       await stake.connect(staker1).unstake(16);
-      console.log(
-        `[staker1 unstaked token] totalShares: ${await stake.totalShares()} | sharePrice: ${ethers.utils.formatEther(
-          await stake.getSharePrice(),
-        )}`,
-      );
     });
   });
 });
