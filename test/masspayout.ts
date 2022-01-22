@@ -32,7 +32,7 @@ describe('Stake Contract', () => {
   let rent: Rent;
   let stake: Stake;
 
-  const MAX_MINT = 500;
+  const MAX_MINT = 250;
 
   const config: RentConfig = {
     rentMonthPrice: ethers.utils.parseEther('0.1'),
@@ -86,7 +86,7 @@ describe('Stake Contract', () => {
     }
   });
 
-  describe('Test distributeMassPayout()', () => {
+  describe('Test distributePayout()', () => {
     it('distribute the rent to all the stakers', async () => {
       // Create a rent
       const rentPrice = ethers.utils.parseEther('1');
@@ -97,8 +97,8 @@ describe('Stake Contract', () => {
       expect(await stake.getNextPayoutBalance()).to.eq(stakeCommission);
       expect(await ethers.provider.getBalance(stake.address)).to.eq(0);
 
-      // Make the owner mass distribute share claims
-      await stake.connect(owner).distributeMassPayout();
+      // Make the owner distribute share claims
+      await stake.connect(owner).distributePayout();
 
       // Check that the balanceNextPayout has been resetted
       expect(await stake.getNextPayoutBalance()).to.eq(0);

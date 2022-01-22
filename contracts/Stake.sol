@@ -10,12 +10,12 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./mocks/RareBlocks.sol";
 import "./interfaces/IRent.sol";
 
-struct UserStake {
+struct StakeInfo {
     address owner;
     uint256 lockExpire;
 }
 
-struct UserInfo {
+struct StakerInfo {
     uint256 stakes;
     uint256 amountClaimable;
 }
@@ -40,7 +40,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     uint256 public totalStakedToken;
 
     /// @notice token owned by stakers
-    mapping(uint256 => UserStake) public stakes;
+    mapping(uint256 => StakeInfo) public stakes;
 
     /// @notice
     uint256 private balanceNextPayout;
@@ -51,8 +51,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @notice Total accrued claims to be distributed to stakers
     uint256 public totalAccruedClaimAmount;
 
-    /// @notice User claims to be redemed
-    mapping(address => UserInfo) public userInfos;
+    /// @notice Staker info
+    mapping(address => StakerInfo) public stakerInfos;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
@@ -136,7 +136,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                             STAKE /UNSTAKE LOGIC
+                             STAKE / UNSTAKE LOGIC
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted after the user has staked a RareBlocks pass
@@ -156,7 +156,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         require(rareblocks.ownerOf(tokenId) == msg.sender, "TOKEN_NOT_OWNED");
 
         // Check if there's a lock on that token for the user
-        UserStake storage stakeInfo = stakes[tokenId];
+        StakeInfo storage stakeInfo = stakes[tokenId];
 
         // we already know that the token is owned by the user
         // if the owner of the current stake info is different from the sender it means that it was from the prev owner
@@ -164,6 +164,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // if the owner is the same check the lock period
         require(stakeInfo.owner != msg.sender || stakeInfo.lockExpire < block.timestamp, "TOKEN_LOCKED");
 
+        // update total staked token count
         totalStakedToken += 1;
 
         // update the user's stake information
@@ -174,7 +175,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         stakers.add(msg.sender);
 
         // update the user info
-        userInfos[msg.sender].stakes += 1;
+        stakerInfos[msg.sender].stakes += 1;
 
         // Emit the stake event
         emit Staked(msg.sender, tokenId);
@@ -187,7 +188,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @param tokenId The RareBlocks tokenId to unstake
     /// @dev should the user be able to unstake even if the contract is paused?
     function unstake(uint256 tokenId) external whenNotPaused {
-        UserStake storage stakeInfo = stakes[tokenId];
+        StakeInfo storage stakeInfo = stakes[tokenId];
 
         // Check if the user was the owner of the tokenId
         require(stakes[tokenId].owner == msg.sender, "NOT_TOKEN_OWNER");
@@ -198,13 +199,14 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         // update the lock period for next stake
         stakeInfo.lockExpire = block.timestamp + STAKE_LOCK_PERIOD;
 
+        // update total staked token count
         totalStakedToken -= 1;
 
         // update the user info
-        userInfos[msg.sender].stakes -= 1;
+        stakerInfos[msg.sender].stakes -= 1;
 
         // remove the user from the list of stakers if he does not own 0 shares
-        if (userInfos[msg.sender].stakes == 0) {
+        if (stakerInfos[msg.sender].stakes == 0) {
             stakers.remove(msg.sender);
         }
 
@@ -215,16 +217,17 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
     }
 
-    /// @notice Get the total balance owed to stakers
-    /// @return The balance withdrawable by stakers
-    function getNextPayoutBalance() public view returns (uint256) {
-        uint256 stakerBalanceOnRent = 0;
+    /// @notice Get the total number of unique stakers
+    /// @return The total number of unique stakers
+    function getStakersCount() external view returns (uint256) {
+        return stakers.length();
+    }
 
-        // Contract can start with rent contract not initialized
-        if (address(rent) != address(0)) {
-            stakerBalanceOnRent = rent.stakerBalance();
-        }
-        return balanceNextPayout + stakerBalanceOnRent;
+    /// @notice Check if an address has staked at least a token
+    /// @param user The user that need to be checked if is a staker
+    /// @return If the user is a staker
+    function isStaker(address user) external view returns (bool) {
+        return stakers.contains(user);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -234,7 +237,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @notice Emitted after the staker has claimed the payout distributed
     /// @param user The authorized staker that has claimed the payout
     /// @param claimedAmount The amount claimed
-    event MassPayoutClaimed(address indexed user, uint256 claimedAmount);
+    event PayoutClaimed(address indexed user, uint256 claimedAmount);
 
     /// @notice Emitted after the owner has distributed the payout to stakers balance
     /// @param user The authorized user who triggered the payout creation
@@ -242,7 +245,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @param stakersCount The amount of stakers at payout time
     /// @param stakesCount The amount of token staked at payout time
     /// @param claimablePerStake The amount clamimable for each stake
-    event MassPayoutDistributed(
+    event PayoutDistributed(
         address indexed user,
         uint256 payoutAmount,
         uint256 stakersCount,
@@ -250,26 +253,26 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         uint256 claimablePerStake
     );
 
-    function claimMassPayout() external {
-        UserInfo storage userInfo = userInfos[msg.sender];
+    function claimPayout() external {
+        StakerInfo storage stakerInfo = stakerInfos[msg.sender];
 
-        uint256 claimableAmount = userInfo.amountClaimable;
+        uint256 claimableAmount = stakerInfo.amountClaimable;
 
         // check if the user has any payout
         require(claimableAmount != 0, "NO_PAYOUT_BALANCE");
 
         // reset the claimable amount
-        userInfo.amountClaimable = 0;
+        stakerInfo.amountClaimable = 0;
 
         // emit the event
-        emit MassPayoutClaimed(msg.sender, claimableAmount);
+        emit PayoutClaimed(msg.sender, claimableAmount);
 
         // Transfer to the staker
         (bool success, ) = msg.sender.call{value: claimableAmount}("");
         require(success, "CLAIM_FAIL");
     }
 
-    function distributeMassPayout() external onlyOwner {
+    function distributePayout() external onlyOwner {
         // if there's no staker just revert
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
 
@@ -291,9 +294,9 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         for (uint256 i = 0; i < stakersCount; i++) {
             address stakerAddress = stakersSet[i];
             if (stakerAddress != address(0)) {
-                UserInfo storage userInfo = userInfos[stakerAddress];
-                uint256 totalClaim = claimablePerStake * userInfo.stakes;
-                userInfo.amountClaimable += totalClaim;
+                StakerInfo storage stakerInfo = stakerInfos[stakerAddress];
+                uint256 totalClaim = claimablePerStake * stakerInfo.stakes;
+                stakerInfo.amountClaimable += totalClaim;
             }
         }
 
@@ -301,7 +304,19 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         balanceNextPayout = 0;
 
         // emit the event
-        emit MassPayoutDistributed(msg.sender, balanceNextPayout, stakersCount, totalStakedToken, claimablePerStake);
+        emit PayoutDistributed(msg.sender, balanceNextPayout, stakersCount, totalStakedToken, claimablePerStake);
+    }
+
+    /// @notice Get the total balance owed to stakers
+    /// @return The balance withdrawable by stakers
+    function getNextPayoutBalance() public view returns (uint256) {
+        uint256 stakerBalanceOnRent = 0;
+
+        // Contract can start with rent contract not initialized
+        if (address(rent) != address(0)) {
+            stakerBalanceOnRent = rent.stakerBalance();
+        }
+        return balanceNextPayout + stakerBalanceOnRent;
     }
 
     /*///////////////////////////////////////////////////////////////

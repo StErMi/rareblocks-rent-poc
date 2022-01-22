@@ -119,7 +119,7 @@ describe('Stake Contract', () => {
 
       await expect(tx).to.be.revertedWith('ERC721: transfer caller is not owner nor approved');
     });
-    it('stake again a token (Stake is the new owner)', async () => {
+    it('stake again a token (Stake contract is the new owner)', async () => {
       const tokenID = 16;
       await stake.connect(staker1).stake(tokenID);
       const tx = stake.connect(staker1).stake(tokenID);
@@ -150,13 +150,23 @@ describe('Stake Contract', () => {
       await expect(tx).to.be.revertedWith('TOKEN_LOCKED');
     });
 
-    it('stake unstaked token that changed owner should succed ', async () => {
+    it('stake unstaked token that changed owner should succed (skip lock period)', async () => {
       const tokenID = 16;
       await stake.connect(staker1).stake(tokenID);
+
+      // total tokens after stake but before unstake -> stake from different staker
+      const totalStakedTokenBefore = await stake.totalStakedToken();
 
       // let 1 month pass and unstake it
       increaseWorldTimeInSeconds(STAKE_LOCK_PERIOD, true);
       await stake.connect(staker1).unstake(tokenID);
+
+      // get the user info
+      let staker1Info = await stake.stakerInfos(staker1.address);
+
+      // StakerInfo info have been updated
+      expect(staker1Info.stakes).to.eq(0);
+      expect(staker1Info.amountClaimable).to.gte(0);
 
       // Change ownership (lock is owner-token based)
       await rareBlocks.connect(staker1).transferFrom(staker1.address, staker2.address, tokenID);
@@ -166,12 +176,38 @@ describe('Stake Contract', () => {
       const now = new Date().getTime() / 1000;
       await stake.connect(staker2).stake(tokenID);
 
+      // get the user info
+      staker1Info = await stake.stakerInfos(staker1.address);
+
+      // StakerInfo info not updated
+      expect(staker1Info.stakes).to.eq(0);
+      expect(staker1Info.amountClaimable).to.gte(0);
+
       // check new stake owner
       const stakeInfo = await stake.stakes(16);
 
       // Stake info have been updated
       expect(stakeInfo.owner).to.eq(staker2.address);
       expect(stakeInfo.lockExpire.toNumber()).to.gte(now + STAKE_LOCK_PERIOD);
+
+      // get the user info
+      const staker2Info = await stake.stakerInfos(staker2.address);
+
+      // StakerInfo info have been updated
+      expect(staker2Info.stakes).to.eq(1);
+      expect(staker2Info.amountClaimable).to.gte(0);
+
+      // number of staked token have been updated
+      expect(await stake.totalStakedToken()).to.eq(totalStakedTokenBefore);
+
+      // only 1 valid staker
+      expect(await stake.getStakersCount()).to.eq(1);
+
+      // staker1 is not a staker anymore
+      expect(await stake.isStaker(staker1.address)).to.eq(false);
+
+      // staker2 is a valid staker
+      expect(await stake.isStaker(staker2.address)).to.eq(true);
     });
 
     it('stake successfully', async () => {
@@ -193,6 +229,19 @@ describe('Stake Contract', () => {
       // Stake info have been updated
       expect(stakeInfo.owner).to.eq(staker1.address);
       expect(stakeInfo.lockExpire.toNumber()).to.gte(now + STAKE_LOCK_PERIOD);
+
+      // get the staker info
+      const stakerInfo = await stake.stakerInfos(staker1.address);
+
+      // StakerInfo info have been updated
+      expect(stakerInfo.stakes).to.eq(1);
+      expect(stakerInfo.amountClaimable).to.gte(0);
+
+      // only 1 valid staker
+      expect(await stake.getStakersCount()).to.eq(1);
+
+      // staker1 is a valid staker
+      expect(await stake.isStaker(staker1.address)).to.eq(true);
     });
   });
 
@@ -243,6 +292,12 @@ describe('Stake Contract', () => {
       // Stake info have been updated
       expect(stakeInfo.owner).to.eq(staker4.address);
       expect(stakeInfo.lockExpire.toNumber()).to.gte(now + STAKE_LOCK_PERIOD);
+
+      // only 1 valid staker
+      expect(await stake.getStakersCount()).to.eq(0);
+
+      // staker1 is a valid staker
+      expect(await stake.isStaker(staker4.address)).to.eq(false);
     });
   });
 });
