@@ -301,6 +301,10 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         uint256 claimablePerStake
     );
 
+    function claimableBalance() external view returns (uint256) {
+        return stakerInfos[msg.sender].amountClaimable;
+    }
+
     function claimPayout() external {
         StakerInfo storage stakerInfo = stakerInfos[msg.sender];
 
@@ -325,7 +329,13 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
 
         // Pulls funds from the Rent contract, balanceNextPayout should be updated
-        rent.stakerPayout();
+        // We need to check if the Rent has funds otherwise it will revert (on Rent side)
+        // And this is not ok because the Owner could do a daily `rent.stakerPayout()` but at
+        // distributePayout it would revert because there are no funds on Rent
+        uint256 stakeBalanceOnRent = rent.stakerBalance();
+        if (stakeBalanceOnRent > 0) {
+            rent.stakerPayout();
+        }
 
         // get the updated balance of the stake contract
         uint256 balanceSnapshot = balanceNextPayout;
@@ -352,7 +362,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         balanceNextPayout = 0;
 
         // emit the event
-        emit PayoutDistributed(msg.sender, balanceNextPayout, stakersCount, totalStakedToken, claimablePerStake);
+        emit PayoutDistributed(msg.sender, balanceSnapshot, stakersCount, totalStakedToken, claimablePerStake);
     }
 
     /// @notice Get the total balance owed to stakers
