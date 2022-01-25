@@ -230,6 +230,54 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         return stakers.contains(user);
     }
 
+    /// @notice Check if a list of tokens can be staked
+    /// @param tokenIds List of tokens to be checked
+    /// @return The list of tokens that can be staked
+    /// @dev approve is not taked in account in this case. User must have already approved Stake contract for single or all tokens
+    function canStake(uint256[] calldata tokenIds) external view returns (uint256[] memory) {
+        uint256[] memory okTokens = new uint256[](tokenIds.length);
+
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            StakeInfo storage stakeInfo = stakes[tokenId];
+            // user must be the owner of the token
+            // if token is unstaked the owner must be different (token transferred to new owner) or the lock period must be passed
+            if (
+                rareblocks.ownerOf(tokenId) == msg.sender &&
+                (stakeInfo.owner != msg.sender || stakeInfo.lockExpire < block.timestamp)
+            ) {
+                okTokens[i] = tokenId;
+            }
+        }
+
+        return okTokens;
+    }
+
+    /// @notice Check if a list of tokens can be unstaked
+    /// @param tokenIds List of tokens to be checked
+    /// @return The list of tokens that can be unstaked
+    function canUnstake(uint256[] calldata tokenIds) external view returns (uint256[] memory) {
+        uint256[] memory okTokens = new uint256[](tokenIds.length);
+
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            StakeInfo storage stakeInfo = stakes[tokenId];
+
+            // owner of the token must be this contract (token staked)
+            // owner of the stake must be the sender
+            // stake must be unlocked
+            if (
+                rareblocks.ownerOf(tokenId) == address(this) &&
+                stakeInfo.owner == msg.sender &&
+                stakeInfo.lockExpire < block.timestamp
+            ) {
+                okTokens[i] = tokenId;
+            }
+        }
+
+        return okTokens;
+    }
+
     /*///////////////////////////////////////////////////////////////
                              PAYOUT LOGIC
     //////////////////////////////////////////////////////////////*/
