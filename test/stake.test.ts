@@ -7,6 +7,8 @@ import StakeArtifact from '../artifacts/contracts/Stake.sol/Stake.json';
 import {Stake} from '../typechain/Stake';
 import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
 import {RareBlocks} from '../typechain/RareBlocks';
+import NFTMockArtifact from '../artifacts/contracts/mocks/NFTMock.sol/NFTMock.json';
+import {NFTMock} from '../typechain/NFTMock';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {BigNumber} from 'ethers';
 import {increaseWorldTimeInSeconds} from './utils';
@@ -21,8 +23,6 @@ interface RentConfig {
   stakerAddress: null | string;
   tresuryAddress: null | string;
 }
-
-const SECONDS_IN_MONTH = 60 * 60 * 24 * 31;
 
 describe('Stake Contract', () => {
   let owner: SignerWithAddress;
@@ -103,6 +103,27 @@ describe('Stake Contract', () => {
   });
 
   describe('Test stake()', () => {
+    it('stake a token that is not RareBlocks Pass', async () => {
+      // deploy the mock contract
+      const nftMock = (await deployContract(owner, NFTMockArtifact)) as NFTMock;
+
+      // mint an NFT and send it to staker1
+      await nftMock.connect(owner).safeMint(staker1.address);
+
+      // staker1 send it to stake contract
+      const tx = nftMock
+        .connect(staker1)
+        ['safeTransferFrom(address,address,uint256)'](staker1.address, stake.address, 0);
+
+      await expect(tx).to.be.revertedWith('SENDER_NOT_RAREBLOCKS');
+    });
+    it('send a token directly to the contract via safeTransferFrom', async () => {
+      const tx = rareBlocks
+        .connect(staker1)
+        ['safeTransferFrom(address,address,uint256)'](staker1.address, stake.address, 16);
+
+      await expect(tx).to.be.revertedWith('ONLY_FROM_DIRECT_STAKE');
+    });
     it("stake a token you don't own", async () => {
       const tx = stake.connect(staker1).stake(1);
 

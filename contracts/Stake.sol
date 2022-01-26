@@ -78,13 +78,17 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice Allow the contract to receive RareBlocks NFT
     function onERC721Received(
-        address,
+        address operator,
         address,
         uint256,
         bytes calldata
     ) external view override returns (bytes4) {
         // accept transfer only from RareBlocks contract
         require(msg.sender == address(rareblocks), "SENDER_NOT_RAREBLOCKS");
+
+        // operator must be the contract itself
+        require(operator == address(this), "ONLY_FROM_DIRECT_STAKE");
+
         return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
     }
 
