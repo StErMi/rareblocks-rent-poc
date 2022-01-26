@@ -58,6 +58,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
                              CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Contract constructor
+    /// @param _rareblocks The RareBlocks Pass contract
     constructor(RareBlocks _rareblocks) {
         // validate parameters
         require(address(_rareblocks) != address(0), "INVALID_RAREBLOCK");
@@ -74,6 +76,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
                              IERC721Receiver LOGIC
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Allow the contract to receive RareBlocks NFT
     function onERC721Received(
         address,
         address,
@@ -301,10 +304,13 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         uint256 claimablePerStake
     );
 
+    /// @notice Get the total payout balance owed to to a staker
+    /// @return The payout balance withdrawable by the staker
     function claimableBalance() external view returns (uint256) {
         return stakerInfos[msg.sender].amountClaimable;
     }
 
+    /// @notice Allow the staker to withdrawn the payout
     function claimPayout() external {
         StakerInfo storage stakerInfo = stakerInfos[msg.sender];
 
@@ -324,6 +330,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         require(success, "CLAIM_FAIL");
     }
 
+    /// @notice Allow the owner of the contract to distribute the rewards to stakers
     function distributePayout() external onlyOwner {
         // if there's no staker just revert
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
@@ -367,7 +374,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
 
     /// @notice Get the total balance owed to stakers
     /// @return The balance withdrawable by stakers
-    function getNextPayoutBalance() public view returns (uint256) {
+    function getNextPayoutBalance() external view returns (uint256) {
         uint256 stakerBalanceOnRent = 0;
 
         // Contract can start with rent contract not initialized
@@ -381,6 +388,7 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
                              RECEIVE / FALLBACK
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Allow the contract to receive funds
     receive() external payable {
         // Accept payments only from the rent contract
         require(msg.sender == address(rent), "ONLY_FROM_RENT");
