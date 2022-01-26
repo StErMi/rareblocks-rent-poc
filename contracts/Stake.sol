@@ -10,17 +10,24 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./mocks/RareBlocks.sol";
 import "./interfaces/IRent.sol";
 
+import "./interfaces/IStake.sol";
+
 struct StakeInfo {
+    /// @notice owner of the stake
     address owner;
+    /// @notice time until the stake is locked for lock/unlock purpose
     uint256 lockExpire;
 }
 
 struct StakerInfo {
+    /// @notice amount of token staked by the staker
     uint256 stakes;
+    /// @notice amount of payout the staker is able to withdraw
     uint256 amountClaimable;
 }
 
-contract Stake is IERC721Receiver, Ownable, Pausable {
+/// @title RareBlocks Pass Stake contract
+contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /*///////////////////////////////////////////////////////////////
@@ -96,13 +103,13 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
                              PAUSE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Allow the owner to pause the stake function
-    function pauseStake() external onlyOwner {
+    /// @inheritdoc IStake
+    function pauseStake() external override onlyOwner {
         _pause();
     }
 
-    /// @notice Allow the owner to unpause the stake function
-    function unpauseStake() external onlyOwner {
+    /// @inheritdoc IStake
+    function unpauseStake() external override onlyOwner {
         _unpause();
     }
 
@@ -115,9 +122,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @param newRareBlocks The new rareblocks contract
     event RareblocksUpdated(address indexed user, RareBlocks newRareBlocks);
 
-    /// @notice Sets a new address for the rareblocks contract
-    /// @param newRareBlocks The new rareblocks contract
-    function setRareBlocks(RareBlocks newRareBlocks) external onlyOwner {
+    /// @inheritdoc IStake
+    function setRareBlocks(RareBlocks newRareBlocks) external override onlyOwner {
         require(address(newRareBlocks) != address(0), "INVALID_RAREBLOCKS");
         rareblocks = newRareBlocks;
 
@@ -133,9 +139,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @param newRent The new rent contract
     event RentUpdated(address indexed user, IRent newRent);
 
-    /// @notice Sets a new address for the rent contract
-    /// @param newRent The new rent contract
-    function setRent(IRent newRent) external onlyOwner {
+    /// @inheritdoc IStake
+    function setRent(IRent newRent) external override onlyOwner {
         require(address(newRent) != address(0), "INVALID_RENT");
         rent = newRent;
 
@@ -156,9 +161,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
     /// @param tokenId The tokenId unstaked
     event Unstaked(address indexed user, uint256 indexed tokenId);
 
-    /// @notice Stake a RareBlocks pass and pay to get a staking share
-    /// @param tokenId The RareBlocks tokenId to stake
-    function stake(uint256 tokenId) external whenNotPaused {
+    /// @inheritdoc IStake
+    function stake(uint256 tokenId) external override whenNotPaused {
         // check that the sender owns the token
         require(rareblocks.ownerOf(tokenId) == msg.sender, "TOKEN_NOT_OWNED");
 
@@ -191,10 +195,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         rareblocks.safeTransferFrom(msg.sender, address(this), tokenId);
     }
 
-    /// @notice Unstake a RareBlocks pass and get paid what is owed to you
-    /// @param tokenId The RareBlocks tokenId to unstake
-    /// @dev should the user be able to unstake even if the contract is paused?
-    function unstake(uint256 tokenId) external whenNotPaused {
+    /// @inheritdoc IStake
+    function unstake(uint256 tokenId) external override whenNotPaused {
         StakeInfo storage stakeInfo = stakes[tokenId];
 
         // Check if the user was the owner of the tokenId
@@ -224,24 +226,18 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
     }
 
-    /// @notice Get the total number of unique stakers
-    /// @return The total number of unique stakers
-    function getStakersCount() external view returns (uint256) {
+    /// @inheritdoc IStake
+    function getStakersCount() external view override returns (uint256) {
         return stakers.length();
     }
 
-    /// @notice Check if an address has staked at least a token
-    /// @param user The user that need to be checked if is a staker
-    /// @return If the user is a staker
-    function isStaker(address user) external view returns (bool) {
+    /// @inheritdoc IStake
+    function isStaker(address user) external view override returns (bool) {
         return stakers.contains(user);
     }
 
-    /// @notice Check if a list of tokens can be staked
-    /// @param tokenIds List of tokens to be checked
-    /// @return The list of tokens that can be staked
-    /// @dev approve is not taked in account in this case. User must have already approved Stake contract for single or all tokens
-    function canStake(uint256[] calldata tokenIds) external view returns (uint256[] memory) {
+    /// @inheritdoc IStake
+    function canStake(uint256[] calldata tokenIds) external view override returns (uint256[] memory) {
         uint256[] memory okTokens = new uint256[](tokenIds.length);
 
         for (uint256 i = 0; i < tokenIds.length; i++) {
@@ -260,10 +256,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         return okTokens;
     }
 
-    /// @notice Check if a list of tokens can be unstaked
-    /// @param tokenIds List of tokens to be checked
-    /// @return The list of tokens that can be unstaked
-    function canUnstake(uint256[] calldata tokenIds) external view returns (uint256[] memory) {
+    /// @inheritdoc IStake
+    function canUnstake(uint256[] calldata tokenIds) external view override returns (uint256[] memory) {
         uint256[] memory okTokens = new uint256[](tokenIds.length);
 
         for (uint256 i = 0; i < tokenIds.length; i++) {
@@ -308,14 +302,13 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         uint256 claimablePerStake
     );
 
-    /// @notice Get the total payout balance owed to to a staker
-    /// @return The payout balance withdrawable by the staker
-    function claimableBalance() external view returns (uint256) {
+    /// @inheritdoc IStake
+    function claimableBalance() external view override returns (uint256) {
         return stakerInfos[msg.sender].amountClaimable;
     }
 
-    /// @notice Allow the staker to withdrawn the payout
-    function claimPayout() external {
+    /// @inheritdoc IStake
+    function claimPayout() external override {
         StakerInfo storage stakerInfo = stakerInfos[msg.sender];
 
         uint256 claimableAmount = stakerInfo.amountClaimable;
@@ -334,8 +327,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         require(success, "CLAIM_FAIL");
     }
 
-    /// @notice Allow the owner of the contract to distribute the rewards to stakers
-    function distributePayout() external onlyOwner {
+    /// @inheritdoc IStake
+    function distributePayout() external override onlyOwner {
         // if there's no staker just revert
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
 
@@ -376,9 +369,8 @@ contract Stake is IERC721Receiver, Ownable, Pausable {
         emit PayoutDistributed(msg.sender, balanceSnapshot, stakersCount, totalStakedToken, claimablePerStake);
     }
 
-    /// @notice Get the total balance owed to stakers
-    /// @return The balance withdrawable by stakers
-    function getNextPayoutBalance() external view returns (uint256) {
+    /// @inheritdoc IStake
+    function getNextPayoutBalance() external view override returns (uint256) {
         uint256 stakerBalanceOnRent = 0;
 
         // Contract can start with rent contract not initialized
