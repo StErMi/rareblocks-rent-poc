@@ -12,20 +12,6 @@ import "./interfaces/IRent.sol";
 
 import "./interfaces/IStake.sol";
 
-struct StakeInfo {
-    /// @notice owner of the stake
-    address owner;
-    /// @notice time until the stake is locked for lock/unlock purpose
-    uint256 lockExpire;
-}
-
-struct StakerInfo {
-    /// @notice amount of token staked by the staker
-    uint256 stakes;
-    /// @notice amount of payout the staker is able to withdraw
-    uint256 amountClaimable;
-}
-
 /// @title RareBlocks Pass Stake contract
 contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     using EnumerableSet for EnumerableSet.AddressSet;
