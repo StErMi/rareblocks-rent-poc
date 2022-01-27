@@ -142,13 +142,36 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     /// @param tokenId The tokenId staked
     event Staked(address indexed user, uint256 indexed tokenId);
 
+    /// @notice Emitted after the user has bulk staked multiple RareBlocks pass
+    /// @param user The authorized user who triggered the bulk stake
+    /// @param tokenIds The tokenIds staked
+    event StakedBulk(address indexed user, uint256[] tokenIds);
+
     /// @notice Emitted after the user has unstaked a RareBlocks pass
     /// @param user The authorized user who triggered the unstake
     /// @param tokenId The tokenId unstaked
     event Unstaked(address indexed user, uint256 indexed tokenId);
 
+    /// @notice Emitted after the user has bulk unstaked multiple RareBlocks pass
+    /// @param user The authorized user who triggered the bulk unstake
+    /// @param tokenId The tokenIds unstaked
+    event UnstakedBulk(address indexed user, uint256[] tokenId);
+
     /// @inheritdoc IStake
     function stake(uint256 tokenId) external override whenNotPaused {
+        _stake(tokenId);
+    }
+
+    /// @inheritdoc IStake
+    function stakeBulk(uint256[] calldata tokenIds) external override whenNotPaused {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            _stake(tokenIds[i]);
+        }
+
+        emit StakedBulk(msg.sender, tokenIds);
+    }
+
+    function _stake(uint256 tokenId) internal {
         // check that the sender owns the token
         require(rareblocks.ownerOf(tokenId) == msg.sender, "TOKEN_NOT_OWNED");
 
@@ -183,6 +206,19 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
 
     /// @inheritdoc IStake
     function unstake(uint256 tokenId) external override whenNotPaused {
+        _unstake(tokenId);
+    }
+
+    /// @inheritdoc IStake
+    function unstakeBulk(uint256[] calldata tokenIds) external override whenNotPaused {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            _unstake(tokenIds[i]);
+        }
+
+        emit UnstakedBulk(msg.sender, tokenIds);
+    }
+
+    function _unstake(uint256 tokenId) internal {
         StakeInfo storage stakeInfo = stakes[tokenId];
 
         // Check if the user was the owner of the tokenId

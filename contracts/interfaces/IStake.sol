@@ -53,15 +53,23 @@ interface IStake {
                              STAKE / UNSTAKE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Stake a RareBlocks pass and pay to get a staking share
+    /// @notice Stake a RareBlocks pass
     /// @param tokenId The RareBlocks tokenId to stake
     function stake(uint256 tokenId) external;
+
+    /// @notice Stake multiple RareBlocks pass
+    /// @param tokenIds The RareBlocks tokenId list to stake
+    function stakeBulk(uint256[] calldata tokenIds) external;
 
     /// @notice Unstake a RareBlocks pass and get paid what is owed to you
     /// @dev should the user be able to unstake even if the contract is paused?
     /// @param tokenId The RareBlocks tokenId to unstake
     /// @dev should the user be able to unstake even if the contract is paused?
     function unstake(uint256 tokenId) external;
+
+    /// @notice Unstake multiple RareBlocks pass
+    /// @param tokenIds The RareBlocks tokenId list to unstake
+    function unstakeBulk(uint256[] calldata tokenIds) external;
 
     /// @notice Get the total number of unique stakers
     /// @return The total number of unique stakers
