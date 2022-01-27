@@ -7,11 +7,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
 import "./interfaces/IStake.sol";
+import "./interfaces/IRent.sol";
 
 /// @title Rent contract
 /// @author poster & SterMi
 /// @notice Manage RareBlocks renting for an amount of months
-contract Rent is Ownable, Pausable {
+contract Rent is IRent, Ownable, Pausable {
     /*///////////////////////////////////////////////////////////////
                              STORAGE VARIABLES
     //////////////////////////////////////////////////////////////*/
@@ -39,7 +40,7 @@ contract Rent is Ownable, Pausable {
     IStake staker;
 
     /// @notice balance of fees that must be sent to the Staker contract
-    uint256 public stakerBalance;
+    uint256 public override stakerBalance;
 
     /// @notice Tresury contract address
     address public tresury;
@@ -73,13 +74,13 @@ contract Rent is Ownable, Pausable {
                              PAUSE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Allow the owner to pause the rent function
-    function pauseRent() external onlyOwner {
+    /// @inheritdoc IRent
+    function pauseRent() external override onlyOwner {
         _pause();
     }
 
-    /// @notice Allow the owner to unpause the rent function
-    function unpauseRent() external onlyOwner {
+    /// @inheritdoc IRent
+    function unpauseRent() external override onlyOwner {
         _unpause();
     }
 
@@ -92,9 +93,8 @@ contract Rent is Ownable, Pausable {
     /// @param newFeePercent The new staker fee percentage
     event StakerFeeUpdated(address indexed user, uint256 newFeePercent);
 
-    /// @notice Sets a new fee percentage for the staker
-    /// @param newFeePercent The new fee percentage.
-    function setStakerFee(uint256 newFeePercent) external onlyOwner {
+    /// @inheritdoc IRent
+    function setStakerFee(uint256 newFeePercent) external override onlyOwner {
         require(newFeePercent != 0 && newFeePercent <= STAKER_MAX_FEE, "INVALID_MAX_RENTALS");
         stakerFeePercent = newFeePercent;
 
@@ -121,27 +121,23 @@ contract Rent is Ownable, Pausable {
     /// @param price The price paid to rent the pass
     event Rented(address indexed user, uint256 months, uint256 price);
 
-    /// @notice Sets the max rentable pass
-    /// @param newMaxRentals The new max number of RareBlocks rentable
-    function setMaxRentals(uint256 newMaxRentals) external onlyOwner {
+    /// @inheritdoc IRent
+    function setMaxRentals(uint256 newMaxRentals) external override onlyOwner {
         maxRentals = newMaxRentals;
 
         emit MaxRentalUpdated(msg.sender, newMaxRentals);
     }
 
-    /// @notice Sets a new montly price per rent
-    /// @param newRentMontlyPrice The new rent montly price
-    function setRentMontlyPrice(uint256 newRentMontlyPrice) external onlyOwner {
+    /// @inheritdoc IRent
+    function setRentMontlyPrice(uint256 newRentMontlyPrice) external override onlyOwner {
         require(newRentMontlyPrice != 0, "INVALID_PRICE");
         rentMontlyPrice = newRentMontlyPrice;
 
         emit RentMonthPriceUpdated(msg.sender, newRentMontlyPrice);
     }
 
-    /// @notice Rent a RareBlock pass for a number of months
-    /// @param months The amounth of months the user want to rent the pass
-    /// @dev do we want to limit the amount of months the user can rent the pass for?
-    function rent(uint256 months) external payable whenNotPaused {
+    /// @inheritdoc IRent
+    function rent(uint256 months) external payable override whenNotPaused {
         // Check that the user amount of months is valid
         require(months != 0, "INVALID_AMOUNT_OF_MONTHS");
 
@@ -168,9 +164,8 @@ contract Rent is Ownable, Pausable {
         emit Rented(msg.sender, months, totalPrice);
     }
 
-    /// @notice Check if a user has an active pass
-    /// @return True if the user has an active pass and it has not expired yet
-    function isRentActive() external view returns (bool) {
+    /// @inheritdoc IRent
+    function isRentActive() external view override returns (bool) {
         return rents[msg.sender] > block.timestamp;
     }
 
@@ -189,9 +184,8 @@ contract Rent is Ownable, Pausable {
     /// @param newTresury The new tresury address
     event TresuryUpdated(address indexed user, address newTresury);
 
-    /// @notice Update the tresury address
-    /// @param newTresury The new tresury address
-    function setTresury(address newTresury) external onlyOwner {
+    /// @inheritdoc IRent
+    function setTresury(address newTresury) external override onlyOwner {
         // check that the new tresury address is valid
         require(newTresury != address(0), "INVALID_TRESURY_ADDRESS");
 
@@ -202,8 +196,8 @@ contract Rent is Ownable, Pausable {
         emit TresuryUpdated(msg.sender, newTresury);
     }
 
-    /// @notice Withdraw funds from the contract to the tresury addresss
-    function withdrawTresury() external onlyOwner {
+    /// @inheritdoc IRent
+    function withdrawTresury() external override onlyOwner {
         // calc the amount of balance that can be sent to the tresury
         uint256 amount = address(this).balance - stakerBalance;
         require(amount != 0, "NO_TRESURY");
@@ -231,9 +225,8 @@ contract Rent is Ownable, Pausable {
     /// @param newStaker The new staker address
     event StakerUpdated(address indexed user, address newStaker);
 
-    /// @notice Update the staker address
-    /// @param newStaker The new staker address
-    function setStaker(IStake newStaker) external onlyOwner {
+    /// @inheritdoc IRent
+    function setStaker(IStake newStaker) external override onlyOwner {
         // check that the new tresury address is valid
         require(address(newStaker) != address(0), "INVALID_STAKER_ADDRESS");
 
@@ -247,9 +240,8 @@ contract Rent is Ownable, Pausable {
         emit StakerUpdated(msg.sender, address(newStaker));
     }
 
-    /// @notice Withdraw funds from the contract to the staker addresss
-    /// @dev everyone can call this function. Maybe there should be an incentive to this?
-    function stakerPayout() external {
+    /// @inheritdoc IRent
+    function stakerPayout() external override {
         // Get the staker balance
         uint256 amount = stakerBalance;
         require(amount != 0, "NO_STAKER_BALANCE");

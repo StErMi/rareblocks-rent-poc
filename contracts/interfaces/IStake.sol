@@ -33,10 +33,6 @@ interface IStake {
     /// @notice Allow the owner to unpause the stake function
     function unpauseStake() external;
 
-    /// @notice Get the current pause state of the contract;
-    /// @return The pause state of the contract, true if paused
-    // function paused() public view virtual returns (bool);
-
     /*///////////////////////////////////////////////////////////////
                              RAREBLOCKS UPDATE LOGIC
     //////////////////////////////////////////////////////////////*/
