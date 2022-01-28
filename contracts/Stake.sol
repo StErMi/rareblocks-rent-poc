@@ -21,7 +21,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice list of addresses that can send funds to this
-    mapping(address => bool) allowedSubscriptions;
+    mapping(address => bool) public allowedSubscriptions;
 
     /// @notice How many days a user must wait before unstake and stake
     uint256 public constant STAKE_LOCK_PERIOD = 31 days;
@@ -102,6 +102,8 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         for (uint256 i = 0; i < subscriptions.length; i++) {
             // prevent change / event emission if the value is the same as before
             address subscription = subscriptions[i];
+            require(subscription != address(0), "INVALID_SUBSCRIPTION");
+
             bool allowed = allowFlags[i];
             if (allowedSubscriptions[subscription] != allowed) {
                 allowedSubscriptions[subscription] = allowed;
@@ -399,11 +401,18 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
                              RECEIVE / FALLBACK
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Emitted after someone from the allowed subscription has sent ETH to the contract
+    /// @param sender The sender of the transaction
+    /// @param amount The amount sent with the transaction
+    event PayoutReceived(address indexed sender, uint256 amount);
+
     /// @notice Allow the contract to receive funds
     receive() external payable {
         // Accept payments only from whitelisted sources
         require(allowedSubscriptions[msg.sender], "SENDER_NOT_ALLOWED");
 
         balanceNextPayout += msg.value;
+
+        emit PayoutReceived(msg.sender, msg.value);
     }
 }
