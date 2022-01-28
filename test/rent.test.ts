@@ -90,6 +90,11 @@ describe('Rent Contract', () => {
 
       await expect(tx).to.be.revertedWith('INVALID_AMOUNT_OF_MONTHS');
     });
+    it('fail to rent with 13 month duration', async () => {
+      const tx = rent.connect(renter1).rent(13, {value: ethers.utils.parseEther('1.3')});
+
+      await expect(tx).to.be.revertedWith('INVALID_AMOUNT_OF_MONTHS');
+    });
     it('fail to rent without providing correct amount of ETH', async () => {
       const tx = rent.connect(renter1).rent(1, {value: ethers.utils.parseEther('0.01')});
 

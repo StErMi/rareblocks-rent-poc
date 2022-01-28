@@ -139,7 +139,7 @@ contract Rent is IRent, Ownable, Pausable {
     /// @inheritdoc IRent
     function rent(uint256 months) external payable override whenNotPaused {
         // Check that the user amount of months is valid
-        require(months != 0, "INVALID_AMOUNT_OF_MONTHS");
+        require(months != 0 && months <= 12, "INVALID_AMOUNT_OF_MONTHS");
 
         uint256 totalPrice = months * rentMontlyPrice;
 
