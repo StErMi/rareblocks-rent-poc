@@ -2,8 +2,6 @@
 pragma solidity =0.8.7;
 import "../mocks/RareBlocks.sol";
 
-import "./IRent.sol";
-
 interface IStake {
     /*///////////////////////////////////////////////////////////////
                              STRUCT DATA
@@ -24,6 +22,15 @@ interface IStake {
     }
 
     /*///////////////////////////////////////////////////////////////
+                             RECEIVE WHITELIST LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Update the list of subscription allowed to send funds to the contract
+    /// @param subscriptions The list of subscription to be updated
+    /// @param allowFlags The list of allow flags to update the corresponding subscription with
+    function updateAllowedSubscriptions(address[] calldata subscriptions, bool[] calldata allowFlags) external;
+
+    /*///////////////////////////////////////////////////////////////
                              PAUSE LOGIC
     //////////////////////////////////////////////////////////////*/
 
@@ -40,14 +47,6 @@ interface IStake {
     /// @notice Sets a new address for the rareblocks contract
     /// @param newRareBlocks The new rareblocks contract
     function setRareBlocks(RareBlocks newRareBlocks) external;
-
-    /*///////////////////////////////////////////////////////////////
-                             RENT UPDATE LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Sets a new address for the rent contract
-    /// @param newRent The new rent contract
-    function setRent(IRent newRent) external;
 
     /*///////////////////////////////////////////////////////////////
                              STAKE / UNSTAKE LOGIC
@@ -106,6 +105,9 @@ interface IStake {
     function distributePayout() external;
 
     /// @notice Get the total balance owed to stakers
+    /// @dev Notice that this balance could not be updated
+    /// @dev The owner of all the subscription must mass send funds to this contract
+    /// @dev before the distributePayout() function
     /// @return The balance withdrawable by stakers
     function getNextPayoutBalance() external view returns (uint256);
 }

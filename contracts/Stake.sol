@@ -20,14 +20,14 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
                              STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice list of addresses that can send funds to this
+    mapping(address => bool) allowedSubscriptions;
+
     /// @notice How many days a user must wait before unstake and stake
     uint256 public constant STAKE_LOCK_PERIOD = 31 days;
 
     /// @notice RareBlocks contract reference
     RareBlocks private rareblocks;
-
-    /// @notice Rent contract address
-    IRent public rent;
 
     /// @notice number of token eligible for current payout
     uint256 public totalStakedToken;
@@ -57,12 +57,8 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         // validate parameters
         require(address(_rareblocks) != address(0), "INVALID_RAREBLOCK");
 
+        // set the RareBlocks contract
         rareblocks = _rareblocks;
-
-        // Pause until the deployer deploy the rent contract and unpause
-        // @dev pause -> deploy rent -> set rent -> unpause could be avoided (at least pause/unpause)
-        // if we are going to pause/unpause remove the require on getStakedBalance
-        _pause();
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -83,6 +79,35 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         require(operator == address(this), "ONLY_FROM_DIRECT_STAKE");
 
         return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
+    }
+
+    /*///////////////////////////////////////////////////////////////
+                             SUBSCRIPTION ALLOW LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Emitted after the owner has updated a whitelist entry
+    /// @param user The authorized user who triggered the update whitelist
+    /// @param subscription The address of the subscription
+    /// @param allowed The flag that represent if the subscription is allowed or not to send funds to the contract
+    event AllowedSubscriptionUpdate(address indexed user, address subscription, bool allowed);
+
+    /// @inheritdoc IStake
+    function updateAllowedSubscriptions(address[] calldata subscriptions, bool[] calldata allowFlags)
+        external
+        override
+        onlyOwner
+    {
+        require(subscriptions.length == allowFlags.length, "LENGHTS_MISMATCH");
+
+        for (uint256 i = 0; i < subscriptions.length; i++) {
+            // prevent change / event emission if the value is the same as before
+            address subscription = subscriptions[i];
+            bool allowed = allowFlags[i];
+            if (allowedSubscriptions[subscription] != allowed) {
+                allowedSubscriptions[subscription] = allowed;
+                emit AllowedSubscriptionUpdate(msg.sender, subscription, allowed);
+            }
+        }
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -114,23 +139,6 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         rareblocks = newRareBlocks;
 
         emit RareblocksUpdated(msg.sender, newRareBlocks);
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                             RENT UPDATE LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Emitted after the owner update the rent contract
-    /// @param user The authorized user who triggered the update
-    /// @param newRent The new rent contract
-    event RentUpdated(address indexed user, IRent newRent);
-
-    /// @inheritdoc IStake
-    function setRent(IRent newRent) external override onlyOwner {
-        require(address(newRent) != address(0), "INVALID_RENT");
-        rent = newRent;
-
-        emit RentUpdated(msg.sender, newRent);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -354,15 +362,6 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         // if there's no staker just revert
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
 
-        // Pulls funds from the Rent contract, balanceNextPayout should be updated
-        // We need to check if the Rent has funds otherwise it will revert (on Rent side)
-        // And this is not ok because the Owner could do a daily `rent.stakerPayout()` but at
-        // distributePayout it would revert because there are no funds on Rent
-        uint256 stakeBalanceOnRent = rent.stakerBalance();
-        if (stakeBalanceOnRent > 0) {
-            rent.stakerPayout();
-        }
-
         // get the updated balance of the stake contract
         uint256 balanceSnapshot = balanceNextPayout;
 
@@ -393,13 +392,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
 
     /// @inheritdoc IStake
     function getNextPayoutBalance() external view override returns (uint256) {
-        uint256 stakerBalanceOnRent = 0;
-
-        // Contract can start with rent contract not initialized
-        if (address(rent) != address(0)) {
-            stakerBalanceOnRent = rent.stakerBalance();
-        }
-        return balanceNextPayout + stakerBalanceOnRent;
+        return balanceNextPayout;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -408,8 +401,8 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
 
     /// @notice Allow the contract to receive funds
     receive() external payable {
-        // Accept payments only from the rent contract
-        require(msg.sender == address(rent), "ONLY_FROM_RENT");
+        // Accept payments only from whitelisted sources
+        require(allowedSubscriptions[msg.sender], "SENDER_NOT_ALLOWED");
 
         balanceNextPayout += msg.value;
     }

@@ -88,11 +88,8 @@ describe('Stake Contract Payout', () => {
       config.tresuryAddress,
     ])) as Rent;
 
-    // set the rent address on stake's contract
-    await stake.setRent(rent.address);
-
-    // resume staking
-    await stake.unpauseStake();
+    // allow the rent contract to send funds to the Staking contract
+    await stake.updateAllowedSubscriptions([rent.address], [true]);
 
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);
@@ -155,6 +152,9 @@ describe('Stake Contract Payout', () => {
       await stake.connect(staker1).stake(16);
       await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
 
+      // distribute staking payout from Rent to Staking contract
+      await rent.connect(owner).stakerPayout();
+
       // distribute the first payout
       await stake.connect(owner).distributePayout();
 
@@ -194,6 +194,9 @@ describe('Stake Contract Payout', () => {
       // rent for 10 months
       await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
 
+      // distribute staking payout from Rent to Staking contract
+      await rent.connect(owner).stakerPayout();
+
       // check balance before payout
       expect(await stake.getNextPayoutBalance()).to.be.equal(ethers.utils.parseEther('0.8'));
 
@@ -230,9 +233,19 @@ describe('Stake Contract Payout', () => {
     });
 
     it('claim after already have claimed it', async () => {
+      // stake a token
       await stake.connect(staker1).stake(16);
+
+      // renter rent a token
       await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+
+      // distribute staking payout from Rent to Staking contract
+      await rent.connect(owner).stakerPayout();
+
+      // distribute payout to stakers
       await stake.connect(owner).distributePayout();
+
+      // staker claim their payout
       await stake.connect(staker1).claimPayout();
 
       const tx = stake.connect(staker1).claimPayout();
@@ -241,8 +254,16 @@ describe('Stake Contract Payout', () => {
     });
 
     it('event is emitted', async () => {
+      // stake a token
       await stake.connect(staker1).stake(16);
+
+      // renter rent a token
       await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+
+      // distribute staking payout from Rent to Staking contract
+      await rent.connect(owner).stakerPayout();
+
+      // distribute payout to stakers
       await stake.connect(owner).distributePayout();
 
       const tx = stake.connect(staker1).claimPayout();
@@ -251,18 +272,29 @@ describe('Stake Contract Payout', () => {
     });
 
     it('correctly claim the reward and balance is updated', async () => {
+      // stake a token
       await stake.connect(staker1).stake(16);
+
+      // renter rent a token
       await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+
+      // distribute staking payout from Rent to Staking contract
+      await rent.connect(owner).stakerPayout();
+
+      // distribute payout to stakers
       await stake.connect(owner).distributePayout();
 
       const reward = ethers.utils.parseEther('0.8'); // 80% of the total rent balance
 
+      // check that reward that can be claimed is the correct one (only one staker so 100% of the total reward)
       expect(await stake.connect(staker1).claimableBalance()).to.be.equal(reward);
 
       const tx = stake.connect(staker1).claimPayout();
 
+      // check that the reward has been correctly sent to the staker balance
       await expect(await tx).to.changeEtherBalance(staker1, reward);
 
+      // check that the stakers has 0 claimable balance on the contract
       expect(await stake.connect(staker1).claimableBalance()).to.be.equal(0);
     });
   });

@@ -64,8 +64,8 @@ const config: HardhatUserConfig = {
   },
   docgen: {
     path: './docs',
-    clear: true,
-    runOnCompile: true,
+    clear: false,
+    runOnCompile: false,
     except: ['^contracts/mocks/'],
   },
 };

@@ -69,11 +69,8 @@ describe('Stake Contract Getters', () => {
       config.tresuryAddress,
     ])) as Rent;
 
-    // set the rent address on stake's contract
-    await stake.setRent(rent.address);
-
-    // resume staking
-    await stake.unpauseStake();
+    // allow the rent contract to send funds to the Staking contract
+    await stake.updateAllowedSubscriptions([rent.address], [true]);
 
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);

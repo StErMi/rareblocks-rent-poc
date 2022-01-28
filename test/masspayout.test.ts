@@ -61,11 +61,8 @@ describe('Stake Contract', () => {
       config.tresuryAddress,
     ])) as Rent;
 
-    // set the rent address on stake's contract
-    await stake.setRent(rent.address);
-
-    // resume staking
-    await stake.unpauseStake();
+    // allow the rent contract to send funds to the Staking contract
+    await stake.updateAllowedSubscriptions([rent.address], [true]);
 
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);
@@ -89,13 +86,19 @@ describe('Stake Contract', () => {
   describe('Test distributePayout()', () => {
     it('distribute the rent to all the stakers', async () => {
       // Create a rent
+      const stakerMaxFee = await rent.STAKER_MAX_FEE();
+      const stakerFee = await rent.stakerFeePercent();
+
       const rentPrice = ethers.utils.parseEther('1');
-      const stakeCommission = rentPrice.mul(80).div(100);
+      const stakeCommission = rentPrice.mul(stakerFee).div(stakerMaxFee);
       await rent.connect(renter1).rent(10, {value: rentPrice});
 
       // check that the balance for the payout equals the rent
-      expect(await stake.getNextPayoutBalance()).to.eq(stakeCommission);
+      expect(await rent.stakerBalance()).to.eq(stakeCommission);
       expect(await ethers.provider.getBalance(stake.address)).to.eq(0);
+
+      // distribute staking payout from Rent to Staking contract
+      await rent.connect(owner).stakerPayout();
 
       // Make the owner distribute share claims
       await stake.connect(owner).distributePayout();
