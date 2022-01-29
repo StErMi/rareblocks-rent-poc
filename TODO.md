@@ -8,6 +8,9 @@
 - [x] get the staker balance
 - [x] remove receive check. everyone can send to this contract
 - [x] added support to whitelist contract to send funds to the staking contract
+- [x] add full test coverage
+- [x] add support to solcover
+- [x] migrate naming to RareBlocksStaking and RareBlocksSubscription
 
 ## Brain dump
 
