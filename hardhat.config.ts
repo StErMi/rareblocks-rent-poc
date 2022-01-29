@@ -7,6 +7,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-solhint';
 import 'solidity-coverage';
 import '@nomiclabs/hardhat-etherscan';
+import 'hardhat-gas-reporter';
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -42,9 +43,23 @@ const config: HardhatUserConfig = {
       url: process.env.RENKEBY_URL || '',
       accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
+    hardhat: {
+      accounts: {
+        mnemonic: 'test test test test test test test test test test test junk',
+        count: 600,
+      },
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
+  },
+  gasReporter: {
+    enabled: true,
+    currency: 'USD',
+    coinmarketcap: process.env.COINMARKETCAP,
+  },
+  mocha: {
+    timeout: 0,
   },
 };
 

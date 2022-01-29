@@ -1,72 +1,32 @@
-# Project Introduction
+# PURPOSE OF PROJECT
 
-This project should allow [RareBlocks NFT Pass](https://rareblocks.xyz/) owners to stake their Pass in the `Stake` contract and get rewarded with ETH by the profit of renting their passes by renters.
+## Subscription Contract
 
-RareBlocks NFT are supply capped at 500.
+- Enable purchase of access to the Rareblocks project by paying a monthly or yearly fee.
+- Distribute the funds to three different contracts/wallets: Treasury, Staker contract and Creator Pool (to be created)
+- Enable lookup of user wallet to see if they have paid access or not
 
-## Use case
+## Staking Contract
 
-- Staker stake the pass that will be available to be rented in a pool
-- Renter want to use the RareBlocks service for X amount of months where `1<=X<=12`. Renter will pay `Y` to rent the pass from the pool where `Y = X * Z` and `Z = rentCost per month in ETH`
-- Staker will be rewarded a `fee` from the rent cost
+- Enable Rareblocks NFT holders to stake and unstake their NFT
+- Staking an NFT makes you eligable to future payouts from revenue streams created by Rareblocks, where the first one will be the Subscription Contract
+- Payouts are manually called by Treasury Wallet every few months, when a minimum amount of funds are available in the Stake or Subscription contract
+- When a payout is created, all stakers who staked before the payout date will get a share of the funds. I.e. if 100 NFTs are staked and the total funds are $100.000, every staker is eligable to $1,000.
+- Payout call will assign a value to every staker wallet address
+- Staker can call a withdrawal function which will send the eligable funds to their wallet
+- To disensentivese frequent staking and unstaking, a lockup period of 31 days is introduced on stake and unstake.
+- Stakers can stake for free (exclucing gas costs) to make it usable even for NFT holders who do not have the funds to purchase shares.
 
-## Reward distribution mechanism
+# POSSIBLE ISSUES
 
-I have tried to implement two different types of reward distribution mechanism:
+- Stakers could stake their NFT a few days before payout happens. While this might be an unfair issue in the beginning, the goal is to have future profit of a level that makes payouts enabled every month. With the lockup period, this will mitigate this unfair situation.
+- Payout function call could be pricy. We've limited the supply to 250 passes, meaning payout could cost up to $2000. The real amount of stakers will be lower though, as we currently have 142 unique holders. NFT holders can not access Rareblocks while their pass is staked. This means that the real count of stakers will probably be around 100-150 passes staked, bringing the payout function down to about $1000 is gas costs. We'll be migrating to a L2 solution fairly soon, meaning gas prices won't be an issue anymore.
+- Users could lose payouts if they unstake before a payout happens. A solution for this is to put a warning on the front-end before unstaking letting stakers know a possible payout might happen soon when the Subscription contract value is over a certain amount of value. It's up to the stakers to make the right call. The same happens with real stocks where if you sell your stocks before dividend payout you're not eligable. Stakers are therefore incentivesed to keep the NFT stakers for long time.
+- We've chosen to go the staking route, instead of making snapshots, because this incentiveses NFT holders to lockup their NFT and take them off the market. Only serious holders should be rewarded.
+- Stakers that send their Pass directly to the contract via `transfer` will lose access to their pass without possibility to revert the action
 
-- share: each staker when stake purchase a share, the share value (and cost) will increase when renters rent a pass and will decrease when a staker unstake the pass (unstaking will "sell" the share)
-- payout: owner of the contract will create a periodic snapshot of the balance and create a `Payout`. Stakers that have staked before the payout are entitled to claim the payout reward.
+## TODOS
 
-For these two distribution mechanism I've also implemented a `mass-distribution` flavor where the owner of the contract distribute the whole payout to users.
-
-## TODO
-
-The project is not finished, I just wanted to explore possible reward distribution mechanism and understand their pro/cons and how much gas would they cost.
-
-- [ ] cover the whole code with tests
-- [ ] add more methods to allow users to get their funds with ony 1 tx
-- [ ] add read-only utility functions for web3 frontends
-- [ ] experiment more ways for reward mechanism
-- [ ] [...]
-
-# Problem and briandump
-
-# Shares
-
-Repo: https://github.com/StErMi/rareblocks-rent-poc/tree/shares
-
-When the staker stake a Pass he/she needs to purchase a share.
-The share cost is calculated like this `getStakedBalance() / totalShares;`
-
-`getStakedBalance` will return the balance of the `Stake` contract plus the balance in the `Rent` contract that is owned by the `Stake` contract (rent cost - tresury commission).
-
-The problem of this approach is that if no stakers unstake (sell the share) and renters keep renting the share value will only increase.
-
-Because stakers needs to buy a share when they stake their NFT at some point (in this worst case situation) they will need to pay a lot of ETH for the investment.
-
-At least for now I've not found a way to allow Stakers to claim their share value without selling their share.
-
-# Shares Mass Distribution
-
-Repo: https://github.com/StErMi/rareblocks-rent-poc/tree/shares-mass-distribution
-
-This mechanism is an extension of the Shares mechanism witht the only addition of a `distributeClaims()` function that try to solve the above problem creating a way to distribute all the current share values to the stakers without selling those shares.
-
-After `distributeClaims` the shareValue will be 0, so new stakers can stake their pass with a lower share price.
-
-The problem of this solution is the high cost fee. At the current time distributing those share rewards will cost ~13.5m gas in the worst scenario (500 different stakers, so 500 loops)
-
-# Payout
-
-Repo: https://github.com/StErMi/rareblocks-rent-poc/tree/payout
-
-This mechanism create a periodic snapshot of the Payout allowing stakers that have staked before the snapshot to claim their reward.
-
-The problem is that the UX in this scenario is not the best because for each payout users needs to claim using a function like `claim(payoutID, tokenID)`.
-It's true that I can easily add utility functions like `claim(payoutIDs[], tokenIDs[][])` where for each payout you can specify a list of `tokenIDs` to pull from but it still have a lot of problems because users/web3 frontend needs to always remember for each payout which tokens have been already claimed.
-
-# Payout Mass Distribution
-
-Repo: https://github.com/StErMi/rareblocks-rent-poc/tree/payout-mass-distribution
-
-This version of the payout removed totally the periodic snapshot and just add a `distributeMassPayout()` function similar to the `distributeClaims()` from `shares-mass-distribution` branch. Being similar it has also similar cost: ~13.5m gas in the worst scenario.
+- [ ] Add ability to more payout addresses to the Subscription contract for future additional partner proframs (Creator pool for example)
+- [x] Add the ability to the Subscription contract to whitelist addresses who can send funds to contract, to enable future revenue streams (Marketplace)
+- [ ] Set a minimum amount of Ethereum before the mass payout function can be called to make sure gas prices are lower than the actually to be divided revenue
