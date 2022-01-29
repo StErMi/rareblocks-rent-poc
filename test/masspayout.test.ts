@@ -1,17 +1,12 @@
-import {ethers, waffle} from 'hardhat';
+import {artifacts, ethers, waffle} from 'hardhat';
 import chai from 'chai';
 
-import RareBlocksSubscriptionArtifact from '../artifacts/contracts/RareBlocksSubscription.sol/RareBlocksSubscription.json';
-import {RareBlocksSubscription} from '../typechain/RareBlocksSubscription';
-import RareBlocksStakingArtifact from '../artifacts/contracts/RareBlocksStaking.sol/RareBlocksStaking.json';
-import {RareBlocksStaking} from '../typechain/RareBlocksStaking';
-import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
-import {RareBlocks} from '../typechain/RareBlocks';
+import {RareBlocksSubscription, RareBlocksStaking, RareBlocks} from '../typechain';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {BigNumber} from 'ethers';
 import {SubscriptionConfig} from './model/SubscriptionConfig';
 
-const {deployContract, loadFixture} = waffle;
+const {deployContract} = waffle;
 const {expect} = chai;
 
 describe('Stake Contract', () => {
@@ -37,9 +32,9 @@ describe('Stake Contract', () => {
   beforeEach(async () => {
     [owner, tresury, subscriber1, ...stakers] = await ethers.getSigners();
 
-    rareBlocks = (await deployContract(owner, RareBlocksArtifact)) as RareBlocks;
+    rareBlocks = (await deployContract(owner, await artifacts.readArtifact('RareBlocks'))) as RareBlocks;
 
-    rareblocksStaking = (await deployContract(owner, RareBlocksStakingArtifact, [
+    rareblocksStaking = (await deployContract(owner, await artifacts.readArtifact('RareBlocksStaking'), [
       rareBlocks.address,
     ])) as RareBlocksStaking;
 
@@ -47,7 +42,7 @@ describe('Stake Contract', () => {
     config.stakerAddress = rareblocksStaking.address;
     config.tresuryAddress = tresury.address;
 
-    rareblocksSubscription = (await deployContract(owner, RareBlocksSubscriptionArtifact, [
+    rareblocksSubscription = (await deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
       config.subscriptionMonthPrice,
       config.maxSubscriptions,
       config.stakerFee,

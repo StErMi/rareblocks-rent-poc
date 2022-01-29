@@ -1,12 +1,7 @@
-import {ethers, waffle} from 'hardhat';
+import {artifacts, ethers, waffle} from 'hardhat';
 import chai from 'chai';
 
-import RareBlocksSubscriptionArtifact from '../artifacts/contracts/RareBlocksSubscription.sol/RareBlocksSubscription.json';
-import {RareBlocksSubscription} from '../typechain/RareBlocksSubscription';
-import RareBlocksStakingArtifact from '../artifacts/contracts/RareBlocksStaking.sol/RareBlocksStaking.json';
-import {RareBlocksStaking} from '../typechain/RareBlocksStaking';
-import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
-import {RareBlocks} from '../typechain/RareBlocks';
+import {RareBlocksSubscription, RareBlocksStaking, RareBlocks} from '../typechain';
 import NFTMockArtifact from '../artifacts/contracts/mocks/NFTMock.sol/NFTMock.json';
 import {NFTMock} from '../typechain/NFTMock';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
@@ -29,7 +24,7 @@ describe('Stake Contract', () => {
   let addrs: SignerWithAddress[];
 
   let rareBlocks: RareBlocks;
-  let rent: RareBlocksSubscription;
+  let rareblocksSubscription: RareBlocksSubscription;
   let rareblocksStaking: RareBlocksStaking;
 
   const config: SubscriptionConfig = {
@@ -45,9 +40,9 @@ describe('Stake Contract', () => {
     [owner, tresury, staker1, staker2, staker3, staker4, subscriber1, subscriber2, ...addrs] =
       await ethers.getSigners();
 
-    rareBlocks = (await deployContract(owner, RareBlocksArtifact)) as RareBlocks;
+    rareBlocks = (await deployContract(owner, await artifacts.readArtifact('RareBlocks'))) as RareBlocks;
 
-    rareblocksStaking = (await deployContract(owner, RareBlocksStakingArtifact, [
+    rareblocksStaking = (await deployContract(owner, await artifacts.readArtifact('RareBlocksStaking'), [
       rareBlocks.address,
     ])) as RareBlocksStaking;
 
@@ -55,7 +50,7 @@ describe('Stake Contract', () => {
     config.stakerAddress = rareblocksStaking.address;
     config.tresuryAddress = tresury.address;
 
-    rent = (await deployContract(owner, RareBlocksSubscriptionArtifact, [
+    rareblocksSubscription = (await deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
       config.subscriptionMonthPrice,
       config.maxSubscriptions,
       config.stakerFee,
@@ -63,7 +58,7 @@ describe('Stake Contract', () => {
       config.tresuryAddress,
     ])) as RareBlocksSubscription;
 
-    await rareblocksStaking.updateAllowedSubscriptions([rent.address], [true]);
+    await rareblocksStaking.updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
 
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);
@@ -91,6 +86,16 @@ describe('Stake Contract', () => {
     await rareBlocks.connect(staker3).approve(rareblocksStaking.address, 20);
     await rareBlocks.connect(staker3).approve(rareblocksStaking.address, 21);
     await rareBlocks.connect(staker4).approve(rareblocksStaking.address, 22);
+  });
+
+  describe('Test deploy parameters', () => {
+    it('RareBlocks address must not be ZeroAddress', async () => {
+      const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksStaking'), [
+        ethers.constants.AddressZero,
+      ]);
+
+      await expect(tx).to.be.revertedWith('INVALID_RAREBLOCK');
+    });
   });
 
   describe('Test stake()', () => {
@@ -310,6 +315,41 @@ describe('Stake Contract', () => {
 
       // staker1 is a valid staker
       expect(await rareblocksStaking.isStaker(staker4.address)).to.eq(false);
+    });
+  });
+
+  describe('Test pause()', () => {
+    it('contract can be paused only by the owner', async () => {
+      const tx = rareblocksStaking.connect(staker1).pause();
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('contract contract is paused after pause()', async () => {
+      await rareblocksStaking.connect(owner).pause();
+
+      expect(await rareblocksStaking.paused()).to.be.equal(true);
+    });
+
+    it('contract contract is unpaused after unpause()', async () => {
+      await rareblocksStaking.connect(owner).pause();
+
+      expect(await rareblocksStaking.paused()).to.be.equal(true);
+    });
+  });
+
+  describe('Test unpause()', () => {
+    it('contract can be unpause only by the owner', async () => {
+      const tx = rareblocksStaking.connect(staker1).unpause();
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('contract contract is unpaused after unpause()', async () => {
+      await rareblocksStaking.connect(owner).pause();
+      await rareblocksStaking.connect(owner).unpause();
+
+      expect(await rareblocksStaking.paused()).to.be.equal(false);
     });
   });
 });

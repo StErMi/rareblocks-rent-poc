@@ -1,12 +1,7 @@
-import {ethers, waffle} from 'hardhat';
+import {artifacts, ethers, waffle} from 'hardhat';
 import chai from 'chai';
 
-import RareBlocksSubscriptionArtifact from '../artifacts/contracts/RareBlocksSubscription.sol/RareBlocksSubscription.json';
-import {RareBlocksSubscription} from '../typechain/RareBlocksSubscription';
-import RareBlocksStakingArtifact from '../artifacts/contracts/RareBlocksStaking.sol/RareBlocksStaking.json';
-import {RareBlocksStaking} from '../typechain/RareBlocksStaking';
-import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
-import {RareBlocks} from '../typechain/RareBlocks';
+import {RareBlocksSubscription, RareBlocksStaking, RareBlocks} from '../typechain';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {BigNumber} from 'ethers';
 import {increaseWorldTimeInSeconds} from './utils';
@@ -42,9 +37,9 @@ describe('Rent Contract', () => {
   beforeEach(async () => {
     [owner, tresury, staker1, staker2, staker3, subscriber1, subscriber2, ...addrs] = await ethers.getSigners();
 
-    rareBlocks = (await deployContract(owner, RareBlocksArtifact)) as RareBlocks;
+    rareBlocks = (await deployContract(owner, await artifacts.readArtifact('RareBlocks'))) as RareBlocks;
 
-    rareblocksStaking = (await deployContract(owner, RareBlocksStakingArtifact, [
+    rareblocksStaking = (await deployContract(owner, await artifacts.readArtifact('RareBlocksStaking'), [
       rareBlocks.address,
     ])) as RareBlocksStaking;
 
@@ -52,7 +47,7 @@ describe('Rent Contract', () => {
     config.stakerAddress = rareblocksStaking.address;
     config.tresuryAddress = tresury.address;
 
-    rareblocksSubscription = (await deployContract(owner, RareBlocksSubscriptionArtifact, [
+    rareblocksSubscription = (await deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
       config.subscriptionMonthPrice,
       config.maxSubscriptions,
       config.stakerFee,
@@ -77,6 +72,80 @@ describe('Rent Contract', () => {
     await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
     await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
     await rareBlocks.connect(staker3).mint(staker3.address, 1, {value: ethers.utils.parseEther('0.08')});
+  });
+
+  describe('Test deploy parameters', () => {
+    it('Monthly price param must be greater than zero', async () => {
+      const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
+        ethers.constants.Zero,
+        config.maxSubscriptions,
+        config.stakerFee,
+        config.stakerAddress,
+        config.tresuryAddress,
+      ]);
+
+      await expect(tx).to.be.revertedWith('INVALID_PRICE_PER_MONTH');
+    });
+
+    it('Max subscriptions param must be greater than zero', async () => {
+      const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
+        config.subscriptionMonthPrice,
+        ethers.constants.Zero,
+        config.stakerFee,
+        config.stakerAddress,
+        config.tresuryAddress,
+      ]);
+
+      await expect(tx).to.be.revertedWith('INVALID_MAX_SUBSCRIPTIONS');
+    });
+
+    it('Max staking fee param must be greater than zero', async () => {
+      const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
+        config.subscriptionMonthPrice,
+        config.maxSubscriptions,
+        ethers.constants.Zero,
+        config.stakerAddress,
+        config.tresuryAddress,
+      ]);
+
+      await expect(tx).to.be.revertedWith('INVALID_STAKING_FEE');
+    });
+
+    it('Max staking fee param must be less or equal to 10000 (100%)', async () => {
+      const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
+        config.subscriptionMonthPrice,
+        config.maxSubscriptions,
+        BigNumber.from(10001),
+        config.stakerAddress,
+        config.tresuryAddress,
+      ]);
+
+      await expect(tx).to.be.revertedWith('INVALID_STAKING_FEE');
+    });
+
+    it('Staking contract address must not be zero address', async () => {
+      const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
+        config.subscriptionMonthPrice,
+        config.maxSubscriptions,
+        config.stakerFee,
+        ethers.constants.AddressZero,
+        config.tresuryAddress,
+      ]);
+
+      await expect(tx).to.be.revertedWith('INVALID_STAKING_CONTRACT');
+    });
+
+    it('Tresury address must not be zero address', async () => {
+      const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
+        config.subscriptionMonthPrice,
+        config.maxSubscriptions,
+        config.stakerFee,
+        config.stakerAddress,
+        ethers.constants.AddressZero,
+      ]);
+
+      await expect(tx).to.be.revertedWith('INVALID_TRESURY_ADDRESSS');
+    });
   });
 
   describe('Test rent()', () => {
@@ -302,6 +371,174 @@ describe('Rent Contract', () => {
 
       const finalRentBalance = await ethers.provider.getBalance(rareblocksSubscription.address);
       expect(finalRentBalance).to.equal(0);
+    });
+  });
+
+  describe('Test pause()', () => {
+    it('contract can be paused only by the owner', async () => {
+      const tx = rareblocksSubscription.connect(staker1).pause();
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('contract contract is paused after pause()', async () => {
+      await rareblocksSubscription.connect(owner).pause();
+
+      expect(await rareblocksSubscription.paused()).to.be.equal(true);
+    });
+
+    it('contract contract is unpaused after unpause()', async () => {
+      await rareblocksSubscription.connect(owner).pause();
+
+      expect(await rareblocksSubscription.paused()).to.be.equal(true);
+    });
+  });
+
+  describe('Test unpause()', () => {
+    it('contract can be unpause only by the owner', async () => {
+      const tx = rareblocksSubscription.connect(staker1).unpause();
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('contract contract is unpaused after unpause()', async () => {
+      await rareblocksSubscription.connect(owner).pause();
+      await rareblocksSubscription.connect(owner).unpause();
+
+      expect(await rareblocksSubscription.paused()).to.be.equal(false);
+    });
+  });
+
+  describe('Test setStakingFee()', () => {
+    it('can be updated only by the owner', async () => {
+      const tx = rareblocksSubscription.connect(staker1).setStakingFee(BigNumber.from(1));
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('new fee must be greater than zero', async () => {
+      const tx = rareblocksSubscription.connect(owner).setStakingFee(ethers.constants.Zero);
+
+      await expect(tx).to.be.revertedWith('INVALID_STAKING_FEE');
+    });
+
+    it('new fee must less or equal to 10000 (100%)', async () => {
+      const tx = rareblocksSubscription.connect(owner).setStakingFee(BigNumber.from(10001));
+
+      await expect(tx).to.be.revertedWith('INVALID_STAKING_FEE');
+    });
+
+    it('new fee must be different from the old one', async () => {
+      const tx = rareblocksSubscription.connect(owner).setStakingFee(config.stakerFee);
+
+      await expect(tx).to.be.revertedWith('SAME_FEE');
+    });
+
+    it('successfully update staking fee', async () => {
+      const newFee = BigNumber.from(10000);
+      const tx = rareblocksSubscription.connect(owner).setStakingFee(newFee);
+
+      await expect(tx).to.emit(rareblocksSubscription, 'StakingFeeUpdated').withArgs(owner.address, newFee);
+
+      expect(await rareblocksSubscription.stakingFeePercent()).to.be.equal(newFee);
+    });
+  });
+
+  describe('Test setSubscriptionMontlyPrice()', () => {
+    it('can be updated only by the owner', async () => {
+      const tx = rareblocksSubscription.connect(staker1).setSubscriptionMontlyPrice(BigNumber.from(1));
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('new price must be greater than zero', async () => {
+      const tx = rareblocksSubscription.connect(owner).setSubscriptionMontlyPrice(ethers.constants.Zero);
+
+      await expect(tx).to.be.revertedWith('INVALID_PRICE');
+    });
+
+    it('new price must be different from the old one', async () => {
+      const tx = rareblocksSubscription.connect(owner).setSubscriptionMontlyPrice(config.subscriptionMonthPrice);
+
+      await expect(tx).to.be.revertedWith('SAME_PRICE');
+    });
+
+    it('successfully update subscription price', async () => {
+      const newPrice = ethers.utils.parseEther('0.2');
+      const tx = rareblocksSubscription.connect(owner).setSubscriptionMontlyPrice(newPrice);
+
+      await expect(tx)
+        .to.emit(rareblocksSubscription, 'SubscriptionMonthPriceUpdated')
+        .withArgs(owner.address, newPrice);
+
+      expect(await rareblocksSubscription.subscriptionMontlyPrice()).to.be.equal(newPrice);
+    });
+  });
+
+  describe('Test setTresury()', () => {
+    it('can be updated only by the owner', async () => {
+      const tx = rareblocksSubscription.connect(staker1).setTresury(staker1.address);
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('new tresury must not be zero address', async () => {
+      const tx = rareblocksSubscription.connect(owner).setTresury(ethers.constants.AddressZero);
+
+      await expect(tx).to.be.revertedWith('INVALID_TRESURY_ADDRESS');
+    });
+
+    it('new tresury must be different from the old one', async () => {
+      const tx = rareblocksSubscription.connect(owner).setTresury(tresury.address);
+
+      await expect(tx).to.be.revertedWith('SAME_TRESURY_ADDRESS');
+    });
+
+    it('successfully update tresury address', async () => {
+      const tx = rareblocksSubscription.connect(owner).setTresury(staker1.address);
+
+      await expect(tx).to.emit(rareblocksSubscription, 'TresuryUpdated').withArgs(owner.address, staker1.address);
+
+      expect(await rareblocksSubscription.tresury()).to.be.equal(staker1.address);
+    });
+  });
+
+  describe('Test setRareBlocksStaking()', () => {
+    it('can be updated only by the owner', async () => {
+      const tx = rareblocksSubscription.connect(staker1).setRareBlocksStaking(staker1.address);
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('new RareBlocksStaking address must not be zero address', async () => {
+      const tx = rareblocksSubscription.connect(owner).setRareBlocksStaking(ethers.constants.AddressZero);
+
+      await expect(tx).to.be.revertedWith('INVALID_STAKING_ADDRESS');
+    });
+
+    it('new RareBlocksStaking address must be different from the old one', async () => {
+      const tx = rareblocksSubscription.connect(owner).setRareBlocksStaking(rareblocksStaking.address);
+
+      await expect(tx).to.be.revertedWith('SAME_STAKING_ADDRESS');
+    });
+
+    it('old RareBlocksStaking address must not have pending fee balance', async () => {
+      // make someone rent a pass
+      await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
+
+      const tx = rareblocksSubscription.connect(owner).setRareBlocksStaking(tresury.address);
+
+      await expect(tx).to.be.revertedWith('PREV_STAKING_HAVE_PENDING_BALANCE');
+    });
+
+    it('successfully update RareBlocksStaking address', async () => {
+      const tx = rareblocksSubscription.connect(owner).setRareBlocksStaking(staker1.address);
+
+      await expect(tx)
+        .to.emit(rareblocksSubscription, 'RareBlocksStakingUpdated')
+        .withArgs(owner.address, staker1.address);
+
+      expect(await rareblocksSubscription.rareBlocksStaking()).to.be.equal(staker1.address);
     });
   });
 });
