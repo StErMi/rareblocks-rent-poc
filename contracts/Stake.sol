@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "./mocks/RareBlocks.sol";
-import "./interfaces/IRent.sol";
 
 import "./interfaces/IStake.sol";
 

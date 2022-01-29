@@ -2,16 +2,16 @@
 pragma solidity =0.8.7;
 import "./IStake.sol";
 
-interface IRent {
+interface IRareBlocksSubscription {
     /*///////////////////////////////////////////////////////////////
                              PAUSE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Allow the owner to pause the rent function
-    function pauseRent() external;
+    /// @notice Allow the owner to pause the subscription function
+    function pauseSubscription() external;
 
-    /// @notice Allow the owner to unpause the rent function
-    function unpauseRent() external;
+    /// @notice Allow the owner to unpause the subscription function
+    function unpauseSubscription() external;
 
     /*///////////////////////////////////////////////////////////////
                              FEE LOGIC
@@ -22,25 +22,24 @@ interface IRent {
     function setStakerFee(uint256 newFeePercent) external;
 
     /*///////////////////////////////////////////////////////////////
-                             RENT LOGIC
+                             SUBSCRIPTION LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Sets the max rentable pass
-    /// @param newMaxRentals The new max number of RareBlocks rentable
-    function setMaxRentals(uint256 newMaxRentals) external;
+    /// @notice Sets the max subscriptions
+    /// @param newMaxSubscriptions The new max number of RareBlocks subscriptions
+    function setMaxSubscriptions(uint256 newMaxSubscriptions) external;
 
-    /// @notice Sets a new montly price per rent
-    /// @param newRentMontlyPrice The new rent montly price
-    function setRentMontlyPrice(uint256 newRentMontlyPrice) external;
+    /// @notice Sets a new montly price per subscription
+    /// @param newSubscriptionMontlyPrice The new subscription montly price
+    function setSubscriptionMontlyPrice(uint256 newSubscriptionMontlyPrice) external;
 
-    /// @notice Rent a RareBlock pass for a number of months
-    /// @param months The amounth of months the user want to rent the pass
-    /// @dev do we want to limit the amount of months the user can rent the pass for?
-    function rent(uint256 months) external payable;
+    /// @notice Subscribe to a RareBlock pass for a number of months
+    /// @param months The amounth of months the user want to subscribe the pass
+    function subscribe(uint256 months) external payable;
 
-    /// @notice Check if a user has an active pass
-    /// @return True if the user has an active pass and it has not expired yet
-    function isRentActive() external view returns (bool);
+    /// @notice Check if a user has an active subscription
+    /// @return True if the user has an active subscription and it has not expired yet
+    function isSubscriptionActive() external view returns (bool);
 
     /*///////////////////////////////////////////////////////////////
                              TRESURY LOGIC
@@ -53,9 +52,9 @@ interface IRent {
     /// @notice Withdraw funds from the contract to the tresury addresss
     function withdrawTresury() external;
 
-    /// @notice Update the staker address
-    /// @param newStaker The new staker address
-    function setStaker(IStake newStaker) external;
+    /// @notice Update the staking contract address
+    /// @param newStaking The new staking contract address
+    function setStaking(IStake newStaking) external;
 
     /*///////////////////////////////////////////////////////////////
                              STAKER LOGIC

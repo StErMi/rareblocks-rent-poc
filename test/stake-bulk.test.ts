@@ -1,28 +1,19 @@
 import {ethers, waffle} from 'hardhat';
 import chai from 'chai';
 
-import RentArtifact from '../artifacts/contracts/Rent.sol/Rent.json';
-import {Rent} from '../typechain/Rent';
+import RareBlocksSubscriptionArtifact from '../artifacts/contracts/RareBlocksSubscription.sol/RareBlocksSubscription.json';
+import {RareBlocksSubscription} from '../typechain/RareBlocksSubscription';
 import StakeArtifact from '../artifacts/contracts/Stake.sol/Stake.json';
 import {Stake} from '../typechain/Stake';
 import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
 import {RareBlocks} from '../typechain/RareBlocks';
-import NFTMockArtifact from '../artifacts/contracts/mocks/NFTMock.sol/NFTMock.json';
-import {NFTMock} from '../typechain/NFTMock';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {BigNumber} from 'ethers';
 import {increaseWorldTimeInSeconds} from './utils';
+import {SubscriptionConfig} from './model/SubscriptionConfig';
 
 const {deployContract} = waffle;
 const {expect} = chai;
-
-interface RentConfig {
-  rentMonthPrice: BigNumber;
-  maxRentals: BigNumber;
-  stakerFee: BigNumber; // 80%,
-  stakerAddress: null | string;
-  tresuryAddress: null | string;
-}
 
 describe('Stake Contract', () => {
   let owner: SignerWithAddress;
@@ -31,17 +22,17 @@ describe('Stake Contract', () => {
   let staker2: SignerWithAddress;
   let staker3: SignerWithAddress;
   let staker4: SignerWithAddress;
-  let renter1: SignerWithAddress;
-  let renter2: SignerWithAddress;
+  let subscriber1: SignerWithAddress;
+  let subscriber2: SignerWithAddress;
   let addrs: SignerWithAddress[];
 
   let rareBlocks: RareBlocks;
-  let rent: Rent;
+  let rareblocksSubscription: RareBlocksSubscription;
   let stake: Stake;
 
-  const config: RentConfig = {
-    rentMonthPrice: ethers.utils.parseEther('0.1'),
-    maxRentals: BigNumber.from(2),
+  const config: SubscriptionConfig = {
+    subscriptionMonthPrice: ethers.utils.parseEther('0.1'),
+    maxSubscriptions: BigNumber.from(2),
     stakerFee: BigNumber.from(8000), // 80%,
     stakerAddress: null,
     tresuryAddress: null,
@@ -50,7 +41,8 @@ describe('Stake Contract', () => {
   const STAKE_LOCK_PERIOD = 60 * 60 * 24 * 31; // 1 month
 
   beforeEach(async () => {
-    [owner, tresury, staker1, staker2, staker3, staker4, renter1, renter2, ...addrs] = await ethers.getSigners();
+    [owner, tresury, staker1, staker2, staker3, staker4, subscriber1, subscriber2, ...addrs] =
+      await ethers.getSigners();
 
     rareBlocks = (await deployContract(owner, RareBlocksArtifact)) as RareBlocks;
 
@@ -60,16 +52,16 @@ describe('Stake Contract', () => {
     config.stakerAddress = stake.address;
     config.tresuryAddress = tresury.address;
 
-    rent = (await deployContract(owner, RentArtifact, [
-      config.rentMonthPrice,
-      config.maxRentals,
+    rareblocksSubscription = (await deployContract(owner, RareBlocksSubscriptionArtifact, [
+      config.subscriptionMonthPrice,
+      config.maxSubscriptions,
       config.stakerFee,
       config.stakerAddress,
       config.tresuryAddress,
-    ])) as Rent;
+    ])) as RareBlocksSubscription;
 
     // allow the rent contract to send funds to the Staking contract
-    await stake.updateAllowedSubscriptions([rent.address], [true]);
+    await stake.updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
 
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);

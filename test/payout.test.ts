@@ -1,8 +1,8 @@
 import {ethers, waffle} from 'hardhat';
 import chai from 'chai';
 
-import RentArtifact from '../artifacts/contracts/Rent.sol/Rent.json';
-import {Rent} from '../typechain/Rent';
+import RareBlocksSubscriptionArtifact from '../artifacts/contracts/RareBlocksSubscription.sol/RareBlocksSubscription.json';
+import {RareBlocksSubscription} from '../typechain/RareBlocksSubscription';
 import StakeArtifact from '../artifacts/contracts/Stake.sol/Stake.json';
 import {Stake} from '../typechain/Stake';
 import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
@@ -10,19 +10,10 @@ import {RareBlocks} from '../typechain/RareBlocks';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {BigNumber} from 'ethers';
 import {increaseWorldTimeInSeconds} from './utils';
+import {SubscriptionConfig} from './model/SubscriptionConfig';
 
 const {deployContract} = waffle;
 const {expect} = chai;
-
-interface RentConfig {
-  rentMonthPrice: BigNumber;
-  maxRentals: BigNumber;
-  stakerFee: BigNumber; // 80%,
-  stakerAddress: null | string;
-  tresuryAddress: null | string;
-}
-
-const SECONDS_IN_MONTH = 60 * 60 * 24 * 31;
 
 describe('Stake Contract Payout', () => {
   let owner: SignerWithAddress;
@@ -36,17 +27,17 @@ describe('Stake Contract Payout', () => {
   let staker7: SignerWithAddress;
   let staker8: SignerWithAddress;
   let staker9: SignerWithAddress;
-  let renter1: SignerWithAddress;
-  let renter2: SignerWithAddress;
+  let subscriber1: SignerWithAddress;
+  let subscriber2: SignerWithAddress;
   let addrs: SignerWithAddress[];
 
   let rareBlocks: RareBlocks;
-  let rent: Rent;
+  let rareblocksSubscription: RareBlocksSubscription;
   let stake: Stake;
 
-  const config: RentConfig = {
-    rentMonthPrice: ethers.utils.parseEther('0.1'),
-    maxRentals: BigNumber.from(2),
+  const config: SubscriptionConfig = {
+    subscriptionMonthPrice: ethers.utils.parseEther('0.1'),
+    maxSubscriptions: BigNumber.from(2),
     stakerFee: BigNumber.from(8000), // 80%,
     stakerAddress: null,
     tresuryAddress: null,
@@ -67,8 +58,8 @@ describe('Stake Contract Payout', () => {
       staker7,
       staker8,
       staker9,
-      renter1,
-      renter2,
+      subscriber1,
+      subscriber2,
       ...addrs
     ] = await ethers.getSigners();
 
@@ -80,16 +71,16 @@ describe('Stake Contract Payout', () => {
     config.stakerAddress = stake.address;
     config.tresuryAddress = tresury.address;
 
-    rent = (await deployContract(owner, RentArtifact, [
-      config.rentMonthPrice,
-      config.maxRentals,
+    rareblocksSubscription = (await deployContract(owner, RareBlocksSubscriptionArtifact, [
+      config.subscriptionMonthPrice,
+      config.maxSubscriptions,
       config.stakerFee,
       config.stakerAddress,
       config.tresuryAddress,
-    ])) as Rent;
+    ])) as RareBlocksSubscription;
 
     // allow the rent contract to send funds to the Staking contract
-    await stake.updateAllowedSubscriptions([rent.address], [true]);
+    await stake.updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
 
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);
@@ -150,10 +141,10 @@ describe('Stake Contract Payout', () => {
 
     it('distribute when there is no balance (prev payout already distributed)', async () => {
       await stake.connect(staker1).stake(16);
-      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+      await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      await rent.connect(owner).stakerPayout();
+      await rareblocksSubscription.connect(owner).stakerPayout();
 
       // distribute the first payout
       await stake.connect(owner).distributePayout();
@@ -192,10 +183,10 @@ describe('Stake Contract Payout', () => {
       await stake.connect(staker8).unstake(25);
 
       // rent for 10 months
-      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+      await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      await rent.connect(owner).stakerPayout();
+      await rareblocksSubscription.connect(owner).stakerPayout();
 
       // check balance before payout
       expect(await stake.getNextPayoutBalance()).to.be.equal(ethers.utils.parseEther('0.8'));
@@ -237,10 +228,10 @@ describe('Stake Contract Payout', () => {
       await stake.connect(staker1).stake(16);
 
       // renter rent a token
-      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+      await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      await rent.connect(owner).stakerPayout();
+      await rareblocksSubscription.connect(owner).stakerPayout();
 
       // distribute payout to stakers
       await stake.connect(owner).distributePayout();
@@ -258,10 +249,10 @@ describe('Stake Contract Payout', () => {
       await stake.connect(staker1).stake(16);
 
       // renter rent a token
-      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+      await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      await rent.connect(owner).stakerPayout();
+      await rareblocksSubscription.connect(owner).stakerPayout();
 
       // distribute payout to stakers
       await stake.connect(owner).distributePayout();
@@ -276,10 +267,10 @@ describe('Stake Contract Payout', () => {
       await stake.connect(staker1).stake(16);
 
       // renter rent a token
-      await rent.connect(renter1).rent(10, {value: ethers.utils.parseEther('1.0')});
+      await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      await rent.connect(owner).stakerPayout();
+      await rareblocksSubscription.connect(owner).stakerPayout();
 
       // distribute payout to stakers
       await stake.connect(owner).distributePayout();
