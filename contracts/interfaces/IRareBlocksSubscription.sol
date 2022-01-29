@@ -7,10 +7,10 @@ interface IRareBlocksSubscription {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Allow the owner to pause the subscription function
-    function pauseSubscription() external;
+    function pause() external;
 
     /// @notice Allow the owner to unpause the subscription function
-    function unpauseSubscription() external;
+    function unpause() external;
 
     /*///////////////////////////////////////////////////////////////
                              FEE LOGIC

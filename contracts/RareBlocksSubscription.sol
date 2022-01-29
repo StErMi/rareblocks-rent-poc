@@ -19,7 +19,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     uint256 public constant STAKING_MAX_FEE = 10_000;
 
     /// @notice Subscription price per month
-    uint256 subscriptionMontlyPrice;
+    uint256 public subscriptionMontlyPrice;
 
     /// @notice max amount of RareBlocks subscriptions
     uint256 public maxSubscriptions;
@@ -34,7 +34,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     uint256 public stakingFeePercent;
 
     /// @notice RareBlocksStaking contract
-    address rareBlocksStaking;
+    address public rareBlocksStaking;
 
     /// @notice balance of fees that must be sent to the RareBlocksStaking contract
     uint256 public override stakingBalance;
@@ -56,7 +56,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
         // check that all the parameters are valid
         require(_subscriptionMontlyPrice != 0, "INVALID_PRICE_PER_MONTH");
         require(_maxSubscriptions != 0, "INVALID_MAX_SUBSCRIPTIONS");
-        require(_stakingFeePercent != 0 && _stakingFeePercent <= STAKING_MAX_FEE, "INVALID_MAX_STAKING_FEE");
+        require(_stakingFeePercent != 0 && _stakingFeePercent <= STAKING_MAX_FEE, "INVALID_STAKING_FEE");
         require(_rareBlocksStaking != address(0), "INVALID_STAKING_CONTRACT");
         require(_tresuryAddress != address(0), "INVALID_TRESURY_ADDRESSS");
 
@@ -72,12 +72,12 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     /// @inheritdoc IRareBlocksSubscription
-    function pauseSubscription() external override onlyOwner {
+    function pause() external override onlyOwner {
         _pause();
     }
 
     /// @inheritdoc IRareBlocksSubscription
-    function unpauseSubscription() external override onlyOwner {
+    function unpause() external override onlyOwner {
         _unpause();
     }
 
@@ -92,7 +92,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
 
     /// @inheritdoc IRareBlocksSubscription
     function setStakingFee(uint256 newFeePercent) external override onlyOwner {
-        require(newFeePercent != 0 && newFeePercent <= STAKING_MAX_FEE, "INVALID_MAX_STAKING_FEE");
+        require(newFeePercent != 0 && newFeePercent <= STAKING_MAX_FEE, "INVALID_STAKING_FEE");
         require(stakingFeePercent != newFeePercent, "SAME_FEE");
 
         stakingFeePercent = newFeePercent;
@@ -130,6 +130,8 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     /// @inheritdoc IRareBlocksSubscription
     function setSubscriptionMontlyPrice(uint256 newSubscriptionMontlyPrice) external override onlyOwner {
         require(newSubscriptionMontlyPrice != 0, "INVALID_PRICE");
+        require(subscriptionMontlyPrice != newSubscriptionMontlyPrice, "SAME_PRICE");
+
         subscriptionMontlyPrice = newSubscriptionMontlyPrice;
 
         emit SubscriptionMonthPriceUpdated(msg.sender, newSubscriptionMontlyPrice);
