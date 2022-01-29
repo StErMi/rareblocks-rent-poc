@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.7;
-import "../mocks/RareBlocks.sol";
 
 interface IStake {
     /*///////////////////////////////////////////////////////////////
@@ -39,14 +38,6 @@ interface IStake {
 
     /// @notice Allow the owner to unpause the stake function
     function unpauseStake() external;
-
-    /*///////////////////////////////////////////////////////////////
-                             RAREBLOCKS UPDATE LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Sets a new address for the rareblocks contract
-    /// @param newRareBlocks The new rareblocks contract
-    function setRareBlocks(RareBlocks newRareBlocks) external;
 
     /*///////////////////////////////////////////////////////////////
                              STAKE / UNSTAKE LOGIC

@@ -4,10 +4,10 @@ pragma solidity =0.8.7;
 import "hardhat/console.sol";
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
-import "./mocks/RareBlocks.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import "./interfaces/IStake.sol";
 
@@ -26,7 +26,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     uint256 public constant STAKE_LOCK_PERIOD = 31 days;
 
     /// @notice RareBlocks contract reference
-    RareBlocks private rareblocks;
+    IERC721 private rareblocks;
 
     /// @notice number of token eligible for current payout
     uint256 public totalStakedToken;
@@ -52,7 +52,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
 
     /// @notice Contract constructor
     /// @param _rareblocks The RareBlocks Pass contract
-    constructor(RareBlocks _rareblocks) {
+    constructor(IERC721 _rareblocks) {
         // validate parameters
         require(address(_rareblocks) != address(0), "INVALID_RAREBLOCK");
 
@@ -123,23 +123,6 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     /// @inheritdoc IStake
     function unpauseStake() external override onlyOwner {
         _unpause();
-    }
-
-    /*///////////////////////////////////////////////////////////////
-                             RAREBLOCKS UPDATE LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    /// @notice Emitted after the owner update the rareblocks contract
-    /// @param user The authorized user who triggered the update
-    /// @param newRareBlocks The new rareblocks contract
-    event RareblocksUpdated(address indexed user, RareBlocks newRareBlocks);
-
-    /// @inheritdoc IStake
-    function setRareBlocks(RareBlocks newRareBlocks) external override onlyOwner {
-        require(address(newRareBlocks) != address(0), "INVALID_RAREBLOCKS");
-        rareblocks = newRareBlocks;
-
-        emit RareblocksUpdated(msg.sender, newRareBlocks);
     }
 
     /*///////////////////////////////////////////////////////////////
