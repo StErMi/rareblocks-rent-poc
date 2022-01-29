@@ -93,6 +93,8 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     /// @inheritdoc IRareBlocksSubscription
     function setStakingFee(uint256 newFeePercent) external override onlyOwner {
         require(newFeePercent != 0 && newFeePercent <= STAKING_MAX_FEE, "INVALID_MAX_STAKING_FEE");
+        require(stakingFeePercent != newFeePercent, "SAME_FEE");
+
         stakingFeePercent = newFeePercent;
 
         emit StakingFeeUpdated(msg.sender, newFeePercent);
@@ -185,6 +187,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     function setTresury(address newTresury) external override onlyOwner {
         // check that the new tresury address is valid
         require(newTresury != address(0), "INVALID_TRESURY_ADDRESS");
+        require(tresury != newTresury, "SAME_TRESURY_ADDRESS");
 
         // update the tresury
         tresury = newTresury;
@@ -226,6 +229,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     function setRareBlocksStaking(address newRareBlocksStaking) external override onlyOwner {
         // check that the new tresury address is valid
         require(newRareBlocksStaking != address(0), "INVALID_STAKING_ADDRESS");
+        require(rareBlocksStaking != newRareBlocksStaking, "SAME_STAKING_ADDRESS");
 
         // before updating the RareBlocksStaking reference call payout
         require(stakingBalance == 0, "PREV_STAKING_HAVE_PENDING_BALANCE");
