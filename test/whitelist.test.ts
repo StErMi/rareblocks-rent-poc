@@ -3,8 +3,8 @@ import chai from 'chai';
 
 import RareBlocksSubscriptionArtifact from '../artifacts/contracts/RareBlocksSubscription.sol/RareBlocksSubscription.json';
 import {RareBlocksSubscription} from '../typechain/RareBlocksSubscription';
-import StakeArtifact from '../artifacts/contracts/Stake.sol/Stake.json';
-import {Stake} from '../typechain/Stake';
+import RareBlocksStakingArtifact from '../artifacts/contracts/RareBlocksStaking.sol/RareBlocksStaking.json';
+import {RareBlocksStaking} from '../typechain/RareBlocksStaking';
 import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
 import {RareBlocks} from '../typechain/RareBlocks';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
@@ -27,7 +27,7 @@ describe('Stake Contract', () => {
 
   let rareBlocks: RareBlocks;
   let rareblocksSubscription: RareBlocksSubscription;
-  let stake: Stake;
+  let rareblocksStaking: RareBlocksStaking;
 
   const config: SubscriptionConfig = {
     subscriptionMonthPrice: ethers.utils.parseEther('0.1'),
@@ -43,10 +43,12 @@ describe('Stake Contract', () => {
 
     rareBlocks = (await deployContract(owner, RareBlocksArtifact)) as RareBlocks;
 
-    stake = (await deployContract(owner, StakeArtifact, [rareBlocks.address])) as Stake;
+    rareblocksStaking = (await deployContract(owner, RareBlocksStakingArtifact, [
+      rareBlocks.address,
+    ])) as RareBlocksStaking;
 
     // update global config
-    config.stakerAddress = stake.address;
+    config.stakerAddress = rareblocksStaking.address;
     config.tresuryAddress = tresury.address;
 
     rareblocksSubscription = (await deployContract(owner, RareBlocksSubscriptionArtifact, [
@@ -60,41 +62,45 @@ describe('Stake Contract', () => {
 
   describe('Test updateAllowedSubscriptions()', () => {
     it('update allow list if you are not the owner', async () => {
-      const tx = stake.connect(staker1).updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
+      const tx = rareblocksStaking
+        .connect(staker1)
+        .updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
 
       await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
     });
     it('update allow list with mismatched param lenghts', async () => {
-      const tx = stake.connect(owner).updateAllowedSubscriptions([rareblocksSubscription.address], [true, false]);
+      const tx = rareblocksStaking
+        .connect(owner)
+        .updateAllowedSubscriptions([rareblocksSubscription.address], [true, false]);
 
       await expect(tx).to.be.revertedWith('LENGHTS_MISMATCH');
     });
     it('update allow list with invalid subscription address', async () => {
-      const tx = stake.connect(owner).updateAllowedSubscriptions([ethers.constants.AddressZero], [true]);
+      const tx = rareblocksStaking.connect(owner).updateAllowedSubscriptions([ethers.constants.AddressZero], [true]);
 
       await expect(tx).to.be.revertedWith('INVALID_SUBSCRIPTION');
     });
 
     it('check that the list is correctly updated', async () => {
       // add rent contract to the whitelist
-      await stake.connect(owner).updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
+      await rareblocksStaking.connect(owner).updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
 
       // check that the list is updated
-      expect(await stake.allowedSubscriptions(rareblocksSubscription.address)).to.be.equal(true);
+      expect(await rareblocksStaking.allowedSubscriptions(rareblocksSubscription.address)).to.be.equal(true);
 
-      const tx = stake
+      const tx = rareblocksStaking
         .connect(owner)
         .updateAllowedSubscriptions([rareblocksSubscription.address, tresury.address], [false, true]);
 
       await expect(tx)
-        .to.emit(stake, 'AllowedSubscriptionUpdate')
+        .to.emit(rareblocksStaking, 'AllowedSubscriptionUpdate')
         .withArgs(owner.address, rareblocksSubscription.address, false)
-        .to.emit(stake, 'AllowedSubscriptionUpdate')
+        .to.emit(rareblocksStaking, 'AllowedSubscriptionUpdate')
         .withArgs(owner.address, tresury.address, true);
 
       // check that the list is updated
-      expect(await stake.allowedSubscriptions(rareblocksSubscription.address)).to.be.equal(false);
-      expect(await stake.allowedSubscriptions(tresury.address)).to.be.equal(true);
+      expect(await rareblocksStaking.allowedSubscriptions(rareblocksSubscription.address)).to.be.equal(false);
+      expect(await rareblocksStaking.allowedSubscriptions(tresury.address)).to.be.equal(true);
     });
   });
 
@@ -104,40 +110,40 @@ describe('Stake Contract', () => {
       await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      const tx = rareblocksSubscription.connect(owner).stakerPayout();
+      const tx = rareblocksSubscription.connect(owner).sendStakingPayout();
 
       await expect(tx).to.be.revertedWith('PAYOUT_FAIL');
     });
 
     it('send ETH to the contract if you are disallowed', async () => {
-      await stake.connect(owner).updateAllowedSubscriptions([rareblocksSubscription.address], [false]);
+      await rareblocksStaking.connect(owner).updateAllowedSubscriptions([rareblocksSubscription.address], [false]);
 
       // rent for 10 months
       await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      const tx = rareblocksSubscription.connect(owner).stakerPayout();
+      const tx = rareblocksSubscription.connect(owner).sendStakingPayout();
 
       await expect(tx).to.be.revertedWith('PAYOUT_FAIL');
     });
 
     it('correctly send the payout to the Staker contract', async () => {
-      await stake.connect(owner).updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
+      await rareblocksStaking.connect(owner).updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
 
       // rent for 10 months
       await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
       // distribute staking payout from Rent to Staking contract
-      const tx = await rareblocksSubscription.connect(owner).stakerPayout();
+      const tx = await rareblocksSubscription.connect(owner).sendStakingPayout();
 
       const stakerPayout = ethers.utils.parseEther('0.8');
       await expect(tx)
-        .to.emit(rareblocksSubscription, 'StakerPayout')
-        .withArgs(owner.address, stake.address, stakerPayout)
-        .to.emit(stake, 'PayoutReceived')
+        .to.emit(rareblocksSubscription, 'StakingPayoutSent')
+        .withArgs(owner.address, rareblocksStaking.address, stakerPayout)
+        .to.emit(rareblocksStaking, 'PayoutReceived')
         .withArgs(rareblocksSubscription.address, stakerPayout);
 
-      expect(await stake.getNextPayoutBalance()).to.be.eq(stakerPayout);
+      expect(await rareblocksStaking.getNextPayoutBalance()).to.be.eq(stakerPayout);
     });
   });
 });

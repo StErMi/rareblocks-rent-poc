@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.7;
-import "./IStake.sol";
 
 interface IRareBlocksSubscription {
     /*///////////////////////////////////////////////////////////////
@@ -17,9 +16,9 @@ interface IRareBlocksSubscription {
                              FEE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Sets a new fee percentage for the staker
+    /// @notice Sets a new fee percentage for the RareBlocksStaking
     /// @param newFeePercent The new fee percentage.
-    function setStakerFee(uint256 newFeePercent) external;
+    function setStakingFee(uint256 newFeePercent) external;
 
     /*///////////////////////////////////////////////////////////////
                              SUBSCRIPTION LOGIC
@@ -53,18 +52,17 @@ interface IRareBlocksSubscription {
     function withdrawTresury() external;
 
     /// @notice Update the staking contract address
-    /// @param newStaking The new staking contract address
-    function setStaking(IStake newStaking) external;
+    /// @param newRareBlocksStaking The new staking contract address
+    function setRareBlocksStaking(address newRareBlocksStaking) external;
 
     /*///////////////////////////////////////////////////////////////
-                             STAKER LOGIC
+                             STAKING PAYOUT/BALANCE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Withdraw funds from the contract to the staker addresss
-    /// @dev everyone can call this function. Maybe there should be an incentive to this?
-    function stakerPayout() external;
+    /// @notice Withdraw funds from the contract to the RareBlocksStaking addresss
+    function sendStakingPayout() external;
 
-    /// @notice Get the balance that can be withdrawn by the Staking contract
-    /// @return The balance that can be withdrawn by the Staking contract
-    function stakerBalance() external view returns (uint256);
+    /// @notice Get the balance that can be withdrawn by the RareBlocksStaking contract
+    /// @return The balance that can be withdrawn by the RareBlocksStaking contract
+    function stakingBalance() external view returns (uint256);
 }

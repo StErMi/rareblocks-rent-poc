@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.7;
 
-import "hardhat/console.sol";
-
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
-import "./interfaces/IStake.sol";
 import "./interfaces/IRareBlocksSubscription.sol";
 
 /// @title RareBlocksSubscription contract
@@ -17,9 +14,9 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
                              STORAGE VARIABLES
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Max staker fee
+    /// @notice Max staking fee
     /// @dev 0 = 0%, 5000 = 50%, 10000 = 100%
-    uint256 public constant STAKER_MAX_FEE = 10_000;
+    uint256 public constant STAKING_MAX_FEE = 10_000;
 
     /// @notice Subscription price per month
     uint256 subscriptionMontlyPrice;
@@ -33,14 +30,14 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     /// @notice map of subscriptions made by users that store the expire time for a subscription
     mapping(address => uint256) public subscriptions;
 
-    /// @notice Staker fee profit percent
-    uint256 public stakerFeePercent;
+    /// @notice RareBlocksStaking fee profit percent
+    uint256 public stakingFeePercent;
 
-    /// @notice Staker contract
-    IStake staker;
+    /// @notice RareBlocksStaking contract
+    address rareBlocksStaking;
 
-    /// @notice balance of fees that must be sent to the Staker contract
-    uint256 public override stakerBalance;
+    /// @notice balance of fees that must be sent to the RareBlocksStaking contract
+    uint256 public override stakingBalance;
 
     /// @notice Tresury contract address
     address public tresury;
@@ -52,21 +49,21 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     constructor(
         uint256 _subscriptionMontlyPrice,
         uint256 _maxSubscriptions,
-        uint256 _stakerFeePercent,
-        IStake _staker,
+        uint256 _stakingFeePercent,
+        address _rareBlocksStaking,
         address _tresuryAddress
     ) Ownable() {
         // check that all the parameters are valid
         require(_subscriptionMontlyPrice != 0, "INVALID_PRICE_PER_MONTH");
         require(_maxSubscriptions != 0, "INVALID_MAX_SUBSCRIPTIONS");
-        require(_stakerFeePercent != 0 && _stakerFeePercent <= STAKER_MAX_FEE, "INVALID_MAX_STAKER_FEE");
-        require(address(_staker) != address(0), "INVALID_STAKER_CONTRACT");
+        require(_stakingFeePercent != 0 && _stakingFeePercent <= STAKING_MAX_FEE, "INVALID_MAX_STAKING_FEE");
+        require(_rareBlocksStaking != address(0), "INVALID_STAKING_CONTRACT");
         require(_tresuryAddress != address(0), "INVALID_TRESURY_ADDRESSS");
 
         subscriptionMontlyPrice = _subscriptionMontlyPrice;
         maxSubscriptions = _maxSubscriptions;
-        stakerFeePercent = _stakerFeePercent;
-        staker = _staker;
+        stakingFeePercent = _stakingFeePercent;
+        rareBlocksStaking = _rareBlocksStaking;
         tresury = _tresuryAddress;
     }
 
@@ -88,17 +85,17 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
                              FEE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted after the owner update the staker percentage
+    /// @notice Emitted after the owner update the staking fee percentage
     /// @param user The authorized user who triggered the update
-    /// @param newFeePercent The new staker fee percentage
-    event StakerFeeUpdated(address indexed user, uint256 newFeePercent);
+    /// @param newFeePercent The new staking fee percentage
+    event StakingFeeUpdated(address indexed user, uint256 newFeePercent);
 
     /// @inheritdoc IRareBlocksSubscription
-    function setStakerFee(uint256 newFeePercent) external override onlyOwner {
-        require(newFeePercent != 0 && newFeePercent <= STAKER_MAX_FEE, "INVALID_MAX_STAKER_FEE");
-        stakerFeePercent = newFeePercent;
+    function setStakingFee(uint256 newFeePercent) external override onlyOwner {
+        require(newFeePercent != 0 && newFeePercent <= STAKING_MAX_FEE, "INVALID_MAX_STAKING_FEE");
+        stakingFeePercent = newFeePercent;
 
-        emit StakerFeeUpdated(msg.sender, newFeePercent);
+        emit StakingFeeUpdated(msg.sender, newFeePercent);
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -156,9 +153,9 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
         subscriptionCount += 1;
         subscriptions[msg.sender] = block.timestamp + (31 days * months);
 
-        // calc the current fees for the stakers
-        uint256 stakersFee = (msg.value * stakerFeePercent) / STAKER_MAX_FEE;
-        stakerBalance += stakersFee;
+        // calc the current fees for the RareBlocksStaking
+        uint256 stakingFeeAmount = (msg.value * stakingFeePercent) / STAKING_MAX_FEE;
+        stakingBalance += stakingFeeAmount;
 
         // emit the event
         emit Subscribed(msg.sender, months, totalPrice);
@@ -199,7 +196,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     /// @inheritdoc IRareBlocksSubscription
     function withdrawTresury() external override onlyOwner {
         // calc the amount of balance that can be sent to the tresury
-        uint256 amount = address(this).balance - stakerBalance;
+        uint256 amount = address(this).balance - stakingBalance;
         require(amount != 0, "NO_TRESURY");
 
         // emit the event
@@ -211,49 +208,49 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                             STAKER LOGIC
+                             STAKING PAYOUT/BALANCE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted after the owner pull the funds to the staker contract
+    /// @notice Emitted after the owner pull the funds to the RareBlocksStaking contract
     /// @param user The authorized user who triggered the withdraw
-    /// @param staker The staker contract address to which funds have been sent
+    /// @param rareBlocksStaking The RareBlocksStaking contract address to which funds have been sent
     /// @param amount The amount withdrawn
-    event StakerPayout(address indexed user, IStake staker, uint256 amount);
+    event StakingPayoutSent(address indexed user, address rareBlocksStaking, uint256 amount);
 
-    /// @notice Emitted after the owner pull the funds to the staker address
+    /// @notice Emitted after the owner pull the funds to the RareBlocksStaking address
     /// @param user The authorized user who triggered the withdraw
-    /// @param newStaker The new staker address
-    event StakerUpdated(address indexed user, address newStaker);
+    /// @param newRareBlocksStaking The new RareBlocksStaking address
+    event RareBlocksStakingUpdated(address indexed user, address newRareBlocksStaking);
 
     /// @inheritdoc IRareBlocksSubscription
-    function setStaking(IStake newStaking) external override onlyOwner {
+    function setRareBlocksStaking(address newRareBlocksStaking) external override onlyOwner {
         // check that the new tresury address is valid
-        require(address(newStaking) != address(0), "INVALID_STAKER_ADDRESS");
+        require(newRareBlocksStaking != address(0), "INVALID_STAKING_ADDRESS");
 
-        // before updating the stakers reference call payout
-        require(stakerBalance == 0, "STAKER_HAVE_PENDING_BALANCE");
+        // before updating the RareBlocksStaking reference call payout
+        require(stakingBalance == 0, "PREV_STAKING_HAVE_PENDING_BALANCE");
 
         // update the tresury
-        staker = newStaking;
+        rareBlocksStaking = newRareBlocksStaking;
 
         // emit the event
-        emit StakerUpdated(msg.sender, address(newStaking));
+        emit RareBlocksStakingUpdated(msg.sender, newRareBlocksStaking);
     }
 
     /// @inheritdoc IRareBlocksSubscription
-    function stakerPayout() external override {
-        // Get the staker balance
-        uint256 amount = stakerBalance;
-        require(amount != 0, "NO_STAKER_BALANCE");
+    function sendStakingPayout() external override onlyOwner {
+        // Get the RareBlocksStaking balance
+        uint256 amount = stakingBalance;
+        require(amount != 0, "NO_STAKING_BALANCE");
 
-        // update the staker balance
-        stakerBalance = 0;
+        // update the staking balance
+        stakingBalance = 0;
 
         // emit the event
-        emit StakerPayout(msg.sender, staker, amount);
+        emit StakingPayoutSent(msg.sender, rareBlocksStaking, amount);
 
         // Transfer to the tresury
-        (bool success, ) = address(staker).call{value: amount}("");
+        (bool success, ) = rareBlocksStaking.call{value: amount}("");
         require(success, "PAYOUT_FAIL");
     }
 }

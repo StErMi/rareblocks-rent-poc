@@ -9,10 +9,10 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-import "./interfaces/IStake.sol";
+import "./interfaces/IRareBlocksStaking.sol";
 
 /// @title RareBlocks Pass Stake contract
-contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
+contract RareBlocksStaking is IRareBlocksStaking, IERC721Receiver, Ownable, Pausable {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /*///////////////////////////////////////////////////////////////
@@ -90,7 +90,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     /// @param allowed The flag that represent if the subscription is allowed or not to send funds to the contract
     event AllowedSubscriptionUpdate(address indexed user, address subscription, bool allowed);
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function updateAllowedSubscriptions(address[] calldata subscriptions, bool[] calldata allowFlags)
         external
         override
@@ -112,16 +112,16 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                             PAUSE LOGIC
+                             PAUSE STAKE/UNSTAKE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @inheritdoc IStake
-    function pauseStake() external override onlyOwner {
+    /// @inheritdoc IRareBlocksStaking
+    function pause() external override onlyOwner {
         _pause();
     }
 
-    /// @inheritdoc IStake
-    function unpauseStake() external override onlyOwner {
+    /// @inheritdoc IRareBlocksStaking
+    function unpause() external override onlyOwner {
         _unpause();
     }
 
@@ -149,12 +149,12 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
     /// @param tokenId The tokenIds unstaked
     event UnstakedBulk(address indexed user, uint256[] tokenId);
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function stake(uint256 tokenId) external override whenNotPaused {
         _stake(tokenId);
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function stakeBulk(uint256[] calldata tokenIds) external override whenNotPaused {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             _stake(tokenIds[i]);
@@ -196,12 +196,12 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         rareblocks.safeTransferFrom(msg.sender, address(this), tokenId);
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function unstake(uint256 tokenId) external override whenNotPaused {
         _unstake(tokenId);
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function unstakeBulk(uint256[] calldata tokenIds) external override whenNotPaused {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             _unstake(tokenIds[i]);
@@ -240,17 +240,17 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         rareblocks.safeTransferFrom(address(this), msg.sender, tokenId);
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function getStakersCount() external view override returns (uint256) {
         return stakers.length();
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function isStaker(address user) external view override returns (bool) {
         return stakers.contains(user);
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function canStake(uint256[] calldata tokenIds) external view override returns (uint256[] memory) {
         uint256[] memory okTokens = new uint256[](tokenIds.length);
 
@@ -270,7 +270,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         return okTokens;
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function canUnstake(uint256[] calldata tokenIds) external view override returns (uint256[] memory) {
         uint256[] memory okTokens = new uint256[](tokenIds.length);
 
@@ -316,12 +316,12 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         uint256 claimablePerStake
     );
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function claimableBalance() external view override returns (uint256) {
         return stakerInfos[msg.sender].amountClaimable;
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function claimPayout() external override {
         StakerInfo storage stakerInfo = stakerInfos[msg.sender];
 
@@ -341,7 +341,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         require(success, "CLAIM_FAIL");
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function distributePayout() external override onlyOwner {
         // if there's no staker just revert
         require(totalStakedToken != 0, "NO_TOKEN_STAKED");
@@ -374,7 +374,7 @@ contract Stake is IStake, IERC721Receiver, Ownable, Pausable {
         emit PayoutDistributed(msg.sender, balanceSnapshot, stakersCount, totalStakedToken, claimablePerStake);
     }
 
-    /// @inheritdoc IStake
+    /// @inheritdoc IRareBlocksStaking
     function getNextPayoutBalance() external view override returns (uint256) {
         return balanceNextPayout;
     }

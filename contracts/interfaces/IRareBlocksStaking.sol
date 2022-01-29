@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.7;
 
-interface IStake {
+interface IRareBlocksStaking {
     /*///////////////////////////////////////////////////////////////
                              STRUCT DATA
     //////////////////////////////////////////////////////////////*/
@@ -33,11 +33,11 @@ interface IStake {
                              PAUSE LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Allow the owner to pause the stake function
-    function pauseStake() external;
+    /// @notice Allow the owner to pause the stake/unstake function
+    function pause() external;
 
-    /// @notice Allow the owner to unpause the stake function
-    function unpauseStake() external;
+    /// @notice Allow the owner to unpause the stake/unstake function
+    function unpause() external;
 
     /*///////////////////////////////////////////////////////////////
                              STAKE / UNSTAKE LOGIC
@@ -52,9 +52,7 @@ interface IStake {
     function stakeBulk(uint256[] calldata tokenIds) external;
 
     /// @notice Unstake a RareBlocks pass and get paid what is owed to you
-    /// @dev should the user be able to unstake even if the contract is paused?
     /// @param tokenId The RareBlocks tokenId to unstake
-    /// @dev should the user be able to unstake even if the contract is paused?
     function unstake(uint256 tokenId) external;
 
     /// @notice Unstake multiple RareBlocks pass
@@ -71,7 +69,7 @@ interface IStake {
     function isStaker(address user) external view returns (bool);
 
     /// @notice Check if a list of tokens can be staked
-    /// @dev approve is not taked in account in this case. User must have already approved Stake contract for single or all tokens
+    /// @dev approve is not taked in account in this case. User must have already approved RareBlocksStaking contract for single or all tokens
     /// @param tokenIds List of tokens to be checked
     /// @return The list of tokens that can be staked
     function canStake(uint256[] calldata tokenIds) external view returns (uint256[] memory);
@@ -85,7 +83,7 @@ interface IStake {
                              PAYOUT LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Get the total payout balance owed to to a stakerclaimPayout
+    /// @notice Get the total payout balance owed to to a staker
     /// @return The payout balance withdrawable by the staker
     function claimableBalance() external view returns (uint256);
 

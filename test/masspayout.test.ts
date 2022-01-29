@@ -3,8 +3,8 @@ import chai from 'chai';
 
 import RareBlocksSubscriptionArtifact from '../artifacts/contracts/RareBlocksSubscription.sol/RareBlocksSubscription.json';
 import {RareBlocksSubscription} from '../typechain/RareBlocksSubscription';
-import StakeArtifact from '../artifacts/contracts/Stake.sol/Stake.json';
-import {Stake} from '../typechain/Stake';
+import RareBlocksStakingArtifact from '../artifacts/contracts/RareBlocksStaking.sol/RareBlocksStaking.json';
+import {RareBlocksStaking} from '../typechain/RareBlocksStaking';
 import RareBlocksArtifact from '../artifacts/contracts/mocks/RareBlocks.sol/RareBlocks.json';
 import {RareBlocks} from '../typechain/RareBlocks';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
@@ -22,7 +22,7 @@ describe('Stake Contract', () => {
 
   let rareBlocks: RareBlocks;
   let rareblocksSubscription: RareBlocksSubscription;
-  let stake: Stake;
+  let rareblocksStaking: RareBlocksStaking;
 
   const MAX_MINT = 10;
 
@@ -39,10 +39,12 @@ describe('Stake Contract', () => {
 
     rareBlocks = (await deployContract(owner, RareBlocksArtifact)) as RareBlocks;
 
-    stake = (await deployContract(owner, StakeArtifact, [rareBlocks.address])) as Stake;
+    rareblocksStaking = (await deployContract(owner, RareBlocksStakingArtifact, [
+      rareBlocks.address,
+    ])) as RareBlocksStaking;
 
     // update global config
-    config.stakerAddress = stake.address;
+    config.stakerAddress = rareblocksStaking.address;
     config.tresuryAddress = tresury.address;
 
     rareblocksSubscription = (await deployContract(owner, RareBlocksSubscriptionArtifact, [
@@ -54,7 +56,7 @@ describe('Stake Contract', () => {
     ])) as RareBlocksSubscription;
 
     // allow the rent contract to send funds to the Staking contract
-    await stake.updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
+    await rareblocksStaking.updateAllowedSubscriptions([rareblocksSubscription.address], [true]);
 
     // Prepare rareblocks
     await rareBlocks.connect(owner).setOpenMintActive(true);
@@ -69,8 +71,8 @@ describe('Stake Contract', () => {
         await rareBlocks.connect(staker).mint(staker.address, 1, {value: ethers.utils.parseEther('0.08')});
       }
 
-      await rareBlocks.connect(staker).approve(stake.address, i);
-      await stake.connect(staker).stake(i);
+      await rareBlocks.connect(staker).approve(rareblocksStaking.address, i);
+      await rareblocksStaking.connect(staker).stake(i);
       stakerIndex++;
     }
   });
@@ -78,26 +80,26 @@ describe('Stake Contract', () => {
   describe('Test distributePayout()', () => {
     it('distribute the rent to all the stakers', async () => {
       // Create a rent
-      const stakerMaxFee = await rareblocksSubscription.STAKER_MAX_FEE();
-      const stakerFee = await rareblocksSubscription.stakerFeePercent();
+      const stakerMaxFee = await rareblocksSubscription.STAKING_MAX_FEE();
+      const stakerFee = await rareblocksSubscription.stakingFeePercent();
 
       const rentPrice = ethers.utils.parseEther('1');
       const stakeCommission = rentPrice.mul(stakerFee).div(stakerMaxFee);
       await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: rentPrice});
 
       // check that the balance for the payout equals the rent
-      expect(await rareblocksSubscription.stakerBalance()).to.eq(stakeCommission);
-      expect(await ethers.provider.getBalance(stake.address)).to.eq(0);
+      expect(await rareblocksSubscription.stakingBalance()).to.eq(stakeCommission);
+      expect(await ethers.provider.getBalance(rareblocksStaking.address)).to.eq(0);
 
       // distribute staking payout from Rent to Staking contract
-      await rareblocksSubscription.connect(owner).stakerPayout();
+      await rareblocksSubscription.connect(owner).sendStakingPayout();
 
       // Make the owner distribute share claims
-      await stake.connect(owner).distributePayout();
+      await rareblocksStaking.connect(owner).distributePayout();
 
       // Check that the balanceNextPayout has been resetted
-      expect(await stake.getNextPayoutBalance()).to.eq(0);
-      expect(await ethers.provider.getBalance(stake.address)).to.eq(stakeCommission);
+      expect(await rareblocksStaking.getNextPayoutBalance()).to.eq(0);
+      expect(await ethers.provider.getBalance(rareblocksStaking.address)).to.eq(stakeCommission);
     });
   });
 });
