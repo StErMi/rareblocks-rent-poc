@@ -30,3 +30,8 @@
 - [ ] Add ability to more payout addresses to the Subscription contract for future additional partner proframs (Creator pool for example)
 - [x] Add the ability to the Subscription contract to whitelist addresses who can send funds to contract, to enable future revenue streams (Marketplace)
 - [ ] Set a minimum amount of Ethereum before the mass payout function can be called to make sure gas prices are lower than the actually to be divided revenue
+
+# Safety
+
+This is proof of concept software and is provided on an "as is" and "as available" basis.
+I do not give any warranties and will not be liable for any loss incurred through any use of this codebase.
