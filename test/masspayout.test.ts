@@ -19,7 +19,7 @@ describe('Stake Contract', () => {
   let rareblocksSubscription: RareBlocksSubscription;
   let rareblocksStaking: RareBlocksStaking;
 
-  const MAX_MINT = 10;
+  const MAX_MINT = 250;
 
   const config: SubscriptionConfig = {
     subscriptionMonthPrice: ethers.utils.parseEther('0.1'),
