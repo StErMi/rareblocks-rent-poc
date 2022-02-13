@@ -14,7 +14,7 @@ const SECONDS_IN_MONTH = 60 * 60 * 24 * 31;
 
 describe('Rent Contract', () => {
   let owner: SignerWithAddress;
-  let tresury: SignerWithAddress;
+  let treasury: SignerWithAddress;
   let staker1: SignerWithAddress;
   let staker2: SignerWithAddress;
   let staker3: SignerWithAddress;
@@ -31,11 +31,11 @@ describe('Rent Contract', () => {
     maxSubscriptions: BigNumber.from(2),
     stakerFee: BigNumber.from(8000), // 80%,
     stakerAddress: null,
-    tresuryAddress: null,
+    treasuryAddress: null,
   };
 
   beforeEach(async () => {
-    [owner, tresury, staker1, staker2, staker3, subscriber1, subscriber2, ...addrs] = await ethers.getSigners();
+    [owner, treasury, staker1, staker2, staker3, subscriber1, subscriber2, ...addrs] = await ethers.getSigners();
 
     rareBlocks = (await deployContract(owner, await artifacts.readArtifact('RareBlocks'))) as RareBlocks;
 
@@ -45,14 +45,14 @@ describe('Rent Contract', () => {
 
     // update global config
     config.stakerAddress = rareblocksStaking.address;
-    config.tresuryAddress = tresury.address;
+    config.treasuryAddress = treasury.address;
 
     rareblocksSubscription = (await deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
       config.subscriptionMonthPrice,
       config.maxSubscriptions,
       config.stakerFee,
       config.stakerAddress,
-      config.tresuryAddress,
+      config.treasuryAddress,
     ])) as RareBlocksSubscription;
 
     // allow the rent contract to send funds to the Staking contract
@@ -81,7 +81,7 @@ describe('Rent Contract', () => {
         config.maxSubscriptions,
         config.stakerFee,
         config.stakerAddress,
-        config.tresuryAddress,
+        config.treasuryAddress,
       ]);
 
       await expect(tx).to.be.revertedWith('INVALID_PRICE_PER_MONTH');
@@ -93,7 +93,7 @@ describe('Rent Contract', () => {
         ethers.constants.Zero,
         config.stakerFee,
         config.stakerAddress,
-        config.tresuryAddress,
+        config.treasuryAddress,
       ]);
 
       await expect(tx).to.be.revertedWith('INVALID_MAX_SUBSCRIPTIONS');
@@ -105,7 +105,7 @@ describe('Rent Contract', () => {
         config.maxSubscriptions,
         ethers.constants.Zero,
         config.stakerAddress,
-        config.tresuryAddress,
+        config.treasuryAddress,
       ]);
 
       await expect(tx).to.be.revertedWith('INVALID_STAKING_FEE');
@@ -117,7 +117,7 @@ describe('Rent Contract', () => {
         config.maxSubscriptions,
         BigNumber.from(10001),
         config.stakerAddress,
-        config.tresuryAddress,
+        config.treasuryAddress,
       ]);
 
       await expect(tx).to.be.revertedWith('INVALID_STAKING_FEE');
@@ -129,13 +129,13 @@ describe('Rent Contract', () => {
         config.maxSubscriptions,
         config.stakerFee,
         ethers.constants.AddressZero,
-        config.tresuryAddress,
+        config.treasuryAddress,
       ]);
 
       await expect(tx).to.be.revertedWith('INVALID_STAKING_CONTRACT');
     });
 
-    it('Tresury address must not be zero address', async () => {
+    it('Treasury address must not be zero address', async () => {
       const tx = deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
         config.subscriptionMonthPrice,
         config.maxSubscriptions,
@@ -144,7 +144,7 @@ describe('Rent Contract', () => {
         ethers.constants.AddressZero,
       ]);
 
-      await expect(tx).to.be.revertedWith('INVALID_TRESURY_ADDRESSS');
+      await expect(tx).to.be.revertedWith('INVALID_TREASURY_ADDRESSS');
     });
   });
 
@@ -242,45 +242,45 @@ describe('Rent Contract', () => {
     });
   });
 
-  describe('Test withdrawTresury()', () => {
+  describe('Test withdrawTreasury()', () => {
     it('revert if not the owner', async () => {
-      const tx = rareblocksSubscription.connect(subscriber1).withdrawTresury();
+      const tx = rareblocksSubscription.connect(subscriber1).withdrawTreasury();
       await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
     });
-    it('revert if tresury balance is 0', async () => {
-      const tx = rareblocksSubscription.connect(owner).withdrawTresury();
-      await expect(tx).to.be.revertedWith('NO_TRESURY');
+    it('revert if treasury balance is 0', async () => {
+      const tx = rareblocksSubscription.connect(owner).withdrawTreasury();
+      await expect(tx).to.be.revertedWith('NO_TREASURY');
     });
     it('revert on double withdraw', async () => {
       const amountOfMonths = 1;
       const ethToSend = config.subscriptionMonthPrice.mul(amountOfMonths);
       await rareblocksSubscription.connect(subscriber1).subscribe(amountOfMonths, {value: ethToSend});
 
-      await rareblocksSubscription.connect(owner).withdrawTresury();
+      await rareblocksSubscription.connect(owner).withdrawTreasury();
 
-      const tx = rareblocksSubscription.connect(owner).withdrawTresury();
-      await expect(tx).to.be.revertedWith('NO_TRESURY');
+      const tx = rareblocksSubscription.connect(owner).withdrawTreasury();
+      await expect(tx).to.be.revertedWith('NO_TREASURY');
     });
-    it('success, send tresury balance to tresury address', async () => {
+    it('success, send treasury balance to treasury address', async () => {
       const amountOfMonths = 1;
       const ethToSend = config.subscriptionMonthPrice.mul(amountOfMonths);
       await rareblocksSubscription.connect(subscriber1).subscribe(amountOfMonths, {value: ethToSend});
 
       const stakerFeeBalance = await rareblocksSubscription.stakingBalance();
       const rentBalance = await ethers.provider.getBalance(rareblocksSubscription.address);
-      const tresuryBalance = rentBalance.sub(stakerFeeBalance);
-      const tx = rareblocksSubscription.connect(owner).withdrawTresury();
+      const treasuryBalance = rentBalance.sub(stakerFeeBalance);
+      const tx = rareblocksSubscription.connect(owner).withdrawTreasury();
 
       await expect(tx)
-        .to.emit(rareblocksSubscription, 'TresuryWithdraw')
-        .withArgs(owner.address, tresury.address, tresuryBalance);
+        .to.emit(rareblocksSubscription, 'TreasuryWithdraw')
+        .withArgs(owner.address, treasury.address, treasuryBalance);
 
-      await expect(await tx).to.changeEtherBalance(tresury, tresuryBalance);
+      await expect(await tx).to.changeEtherBalance(treasury, treasuryBalance);
 
-      const rentBalanceAfterTresuryWithdraw = await ethers.provider.getBalance(rareblocksSubscription.address);
-      expect(rentBalanceAfterTresuryWithdraw).to.equal(stakerFeeBalance);
+      const rentBalanceAfterTreasuryWithdraw = await ethers.provider.getBalance(rareblocksSubscription.address);
+      expect(rentBalanceAfterTreasuryWithdraw).to.equal(stakerFeeBalance);
     });
-    it('success, send tresury balance to tresury address after staker payout', async () => {
+    it('success, send treasury balance to treasury address after staker payout', async () => {
       const amountOfMonths = 1;
       const ethToSend = config.subscriptionMonthPrice.mul(amountOfMonths);
       await rareblocksSubscription.connect(subscriber1).subscribe(amountOfMonths, {value: ethToSend});
@@ -289,14 +289,14 @@ describe('Rent Contract', () => {
 
       const stakerFeeBalance = await rareblocksSubscription.stakingBalance();
       const rentBalance = await ethers.provider.getBalance(rareblocksSubscription.address);
-      const tresuryBalance = rentBalance.sub(stakerFeeBalance);
-      const tx = rareblocksSubscription.connect(owner).withdrawTresury();
+      const treasuryBalance = rentBalance.sub(stakerFeeBalance);
+      const tx = rareblocksSubscription.connect(owner).withdrawTreasury();
 
       await expect(tx)
-        .to.emit(rareblocksSubscription, 'TresuryWithdraw')
-        .withArgs(owner.address, tresury.address, tresuryBalance);
+        .to.emit(rareblocksSubscription, 'TreasuryWithdraw')
+        .withArgs(owner.address, treasury.address, treasuryBalance);
 
-      await expect(await tx).to.changeEtherBalance(tresury, tresuryBalance);
+      await expect(await tx).to.changeEtherBalance(treasury, treasuryBalance);
 
       const finalRentBalance = await ethers.provider.getBalance(rareblocksSubscription.address);
       expect(finalRentBalance).to.equal(0);
@@ -308,7 +308,7 @@ describe('Rent Contract', () => {
       const tx = rareblocksSubscription.connect(subscriber1).sendStakingPayout();
       await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
     });
-    it('revert if tresury balance is 0', async () => {
+    it('revert if treasury balance is 0', async () => {
       const tx = rareblocksSubscription.connect(owner).sendStakingPayout();
       await expect(tx).to.be.revertedWith('NO_STAKING_BALANCE');
     });
@@ -329,7 +329,7 @@ describe('Rent Contract', () => {
 
       const stakerFeeBalance = await rareblocksSubscription.stakingBalance();
       const rentBalance = await ethers.provider.getBalance(rareblocksSubscription.address);
-      const tresuryBalance = rentBalance.sub(stakerFeeBalance);
+      const treasuryBalance = rentBalance.sub(stakerFeeBalance);
       const tx = rareblocksSubscription.connect(owner).sendStakingPayout();
 
       await expect(tx)
@@ -344,18 +344,18 @@ describe('Rent Contract', () => {
       expect(stakerBalance).to.equal(stakerFeeBalance);
 
       const rentBalanceAfterStakerPayoutWithdraw = await ethers.provider.getBalance(rareblocksSubscription.address);
-      expect(rentBalanceAfterStakerPayoutWithdraw).to.equal(tresuryBalance);
+      expect(rentBalanceAfterStakerPayoutWithdraw).to.equal(treasuryBalance);
     });
-    it('success, send staker fee balance to stake address after tresury withdraw', async () => {
+    it('success, send staker fee balance to stake address after treasury withdraw', async () => {
       const amountOfMonths = 1;
       const ethToSend = config.subscriptionMonthPrice.mul(amountOfMonths);
       await rareblocksSubscription.connect(subscriber1).subscribe(amountOfMonths, {value: ethToSend});
 
-      await rareblocksSubscription.connect(owner).withdrawTresury();
+      await rareblocksSubscription.connect(owner).withdrawTreasury();
 
       const stakerFeeBalance = await rareblocksSubscription.stakingBalance();
       const rentBalance = await ethers.provider.getBalance(rareblocksSubscription.address);
-      const tresuryBalance = rentBalance.sub(stakerFeeBalance);
+      const treasuryBalance = rentBalance.sub(stakerFeeBalance);
       const tx = rareblocksSubscription.connect(owner).sendStakingPayout();
 
       await expect(tx)
@@ -475,31 +475,31 @@ describe('Rent Contract', () => {
     });
   });
 
-  describe('Test setTresury()', () => {
+  describe('Test setTreasury()', () => {
     it('can be updated only by the owner', async () => {
-      const tx = rareblocksSubscription.connect(staker1).setTresury(staker1.address);
+      const tx = rareblocksSubscription.connect(staker1).setTreasury(staker1.address);
 
       await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
-    it('new tresury must not be zero address', async () => {
-      const tx = rareblocksSubscription.connect(owner).setTresury(ethers.constants.AddressZero);
+    it('new treasury must not be zero address', async () => {
+      const tx = rareblocksSubscription.connect(owner).setTreasury(ethers.constants.AddressZero);
 
-      await expect(tx).to.be.revertedWith('INVALID_TRESURY_ADDRESS');
+      await expect(tx).to.be.revertedWith('INVALID_TREASURY_ADDRESS');
     });
 
-    it('new tresury must be different from the old one', async () => {
-      const tx = rareblocksSubscription.connect(owner).setTresury(tresury.address);
+    it('new treasury must be different from the old one', async () => {
+      const tx = rareblocksSubscription.connect(owner).setTreasury(treasury.address);
 
-      await expect(tx).to.be.revertedWith('SAME_TRESURY_ADDRESS');
+      await expect(tx).to.be.revertedWith('SAME_TREASURY_ADDRESS');
     });
 
-    it('successfully update tresury address', async () => {
-      const tx = rareblocksSubscription.connect(owner).setTresury(staker1.address);
+    it('successfully update treasury address', async () => {
+      const tx = rareblocksSubscription.connect(owner).setTreasury(staker1.address);
 
-      await expect(tx).to.emit(rareblocksSubscription, 'TresuryUpdated').withArgs(owner.address, staker1.address);
+      await expect(tx).to.emit(rareblocksSubscription, 'TreasuryUpdated').withArgs(owner.address, staker1.address);
 
-      expect(await rareblocksSubscription.tresury()).to.be.equal(staker1.address);
+      expect(await rareblocksSubscription.treasury()).to.be.equal(staker1.address);
     });
   });
 
@@ -526,7 +526,7 @@ describe('Rent Contract', () => {
       // make someone rent a pass
       await rareblocksSubscription.connect(subscriber1).subscribe(10, {value: ethers.utils.parseEther('1.0')});
 
-      const tx = rareblocksSubscription.connect(owner).setRareBlocksStaking(tresury.address);
+      const tx = rareblocksSubscription.connect(owner).setRareBlocksStaking(treasury.address);
 
       await expect(tx).to.be.revertedWith('PREV_STAKING_HAVE_PENDING_BALANCE');
     });

@@ -39,8 +39,8 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     /// @notice balance of fees that must be sent to the RareBlocksStaking contract
     uint256 public override stakingBalance;
 
-    /// @notice Tresury contract address
-    address public tresury;
+    /// @notice Treasury contract address
+    address public treasury;
 
     /*///////////////////////////////////////////////////////////////
                              CONSTRUCTOR
@@ -51,20 +51,20 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
         uint256 _maxSubscriptions,
         uint256 _stakingFeePercent,
         address _rareBlocksStaking,
-        address _tresuryAddress
+        address _treasuryAddress
     ) Ownable() {
         // check that all the parameters are valid
         require(_subscriptionMonthlyPrice != 0, "INVALID_PRICE_PER_MONTH");
         require(_maxSubscriptions != 0, "INVALID_MAX_SUBSCRIPTIONS");
         require(_stakingFeePercent != 0 && _stakingFeePercent <= STAKING_MAX_FEE, "INVALID_STAKING_FEE");
         require(_rareBlocksStaking != address(0), "INVALID_STAKING_CONTRACT");
-        require(_tresuryAddress != address(0), "INVALID_TRESURY_ADDRESSS");
+        require(_treasuryAddress != address(0), "INVALID_TREASURY_ADDRESSS");
 
         subscriptionMonthlyPrice = _subscriptionMonthlyPrice;
         maxSubscriptions = _maxSubscriptions;
         stakingFeePercent = _stakingFeePercent;
         rareBlocksStaking = _rareBlocksStaking;
-        tresury = _tresuryAddress;
+        treasury = _treasuryAddress;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -171,44 +171,44 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     }
 
     /*///////////////////////////////////////////////////////////////
-                             TRESURY LOGIC
+                             TREASURY LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted after the owner pull the funds to the tresury address
+    /// @notice Emitted after the owner pull the funds to the treasury address
     /// @param user The authorized user who triggered the withdraw
-    /// @param tresury The tresury address to which the funds have been sent
+    /// @param treasury The treasury address to which the funds have been sent
     /// @param amount The amount withdrawn
-    event TresuryWithdraw(address indexed user, address tresury, uint256 amount);
+    event TreasuryWithdraw(address indexed user, address treasury, uint256 amount);
 
-    /// @notice Emitted after the owner pull the funds to the tresury address
+    /// @notice Emitted after the owner pull the funds to the treasury address
     /// @param user The authorized user who triggered the withdraw
-    /// @param newTresury The new tresury address
-    event TresuryUpdated(address indexed user, address newTresury);
+    /// @param newTreasury The new treasury address
+    event TreasuryUpdated(address indexed user, address newTreasury);
 
     /// @inheritdoc IRareBlocksSubscription
-    function setTresury(address newTresury) external override onlyOwner {
-        // check that the new tresury address is valid
-        require(newTresury != address(0), "INVALID_TRESURY_ADDRESS");
-        require(tresury != newTresury, "SAME_TRESURY_ADDRESS");
+    function setTreasury(address newTreasury) external override onlyOwner {
+        // check that the new treasury address is valid
+        require(newTreasury != address(0), "INVALID_TREASURY_ADDRESS");
+        require(treasury != newTreasury, "SAME_TREASURY_ADDRESS");
 
-        // update the tresury
-        tresury = newTresury;
+        // update the treasury
+        treasury = newTreasury;
 
         // emit the event
-        emit TresuryUpdated(msg.sender, newTresury);
+        emit TreasuryUpdated(msg.sender, newTreasury);
     }
 
     /// @inheritdoc IRareBlocksSubscription
-    function withdrawTresury() external override onlyOwner {
-        // calc the amount of balance that can be sent to the tresury
+    function withdrawTreasury() external override onlyOwner {
+        // calc the amount of balance that can be sent to the treasury
         uint256 amount = address(this).balance - stakingBalance;
-        require(amount != 0, "NO_TRESURY");
+        require(amount != 0, "NO_TREASURY");
 
         // emit the event
-        emit TresuryWithdraw(msg.sender, tresury, amount);
+        emit TreasuryWithdraw(msg.sender, treasury, amount);
 
-        // Transfer to the tresury
-        (bool success, ) = tresury.call{value: amount}("");
+        // Transfer to the treasury
+        (bool success, ) = treasury.call{value: amount}("");
         require(success, "WITHDRAW_FAIL");
     }
 
@@ -229,14 +229,14 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
 
     /// @inheritdoc IRareBlocksSubscription
     function setRareBlocksStaking(address newRareBlocksStaking) external override onlyOwner {
-        // check that the new tresury address is valid
+        // check that the new treasury address is valid
         require(newRareBlocksStaking != address(0), "INVALID_STAKING_ADDRESS");
         require(rareBlocksStaking != newRareBlocksStaking, "SAME_STAKING_ADDRESS");
 
         // before updating the RareBlocksStaking reference call payout
         require(stakingBalance == 0, "PREV_STAKING_HAVE_PENDING_BALANCE");
 
-        // update the tresury
+        // update the treasury
         rareBlocksStaking = newRareBlocksStaking;
 
         // emit the event
@@ -255,7 +255,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
         // emit the event
         emit StakingPayoutSent(msg.sender, rareBlocksStaking, amount);
 
-        // Transfer to the tresury
+        // Transfer to the treasury
         (bool success, ) = rareBlocksStaking.call{value: amount}("");
         require(success, "PAYOUT_FAIL");
     }

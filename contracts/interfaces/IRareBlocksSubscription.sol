@@ -41,15 +41,15 @@ interface IRareBlocksSubscription {
     function isSubscriptionActive() external view returns (bool);
 
     /*///////////////////////////////////////////////////////////////
-                             TRESURY LOGIC
+                             TREASURY LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Update the tresury address
-    /// @param newTresury The new tresury address
-    function setTresury(address newTresury) external;
+    /// @notice Update the treasury address
+    /// @param newTreasury The new treasury address
+    function setTreasury(address newTreasury) external;
 
-    /// @notice Withdraw funds from the contract to the tresury addresss
-    function withdrawTresury() external;
+    /// @notice Withdraw funds from the contract to the treasury addresss
+    function withdrawTreasury() external;
 
     /// @notice Update the staking contract address
     /// @param newRareBlocksStaking The new staking contract address

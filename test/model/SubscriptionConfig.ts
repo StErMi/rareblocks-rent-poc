@@ -5,7 +5,7 @@ interface SubscriptionConfig {
   maxSubscriptions: BigNumber;
   stakerFee: BigNumber; // 80%,
   stakerAddress: null | string;
-  tresuryAddress: null | string;
+  treasuryAddress: null | string;
 }
 
 export {SubscriptionConfig};

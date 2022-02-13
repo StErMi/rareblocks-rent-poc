@@ -11,7 +11,7 @@ const {expect} = chai;
 
 describe('Stake Contract', () => {
   let owner: SignerWithAddress;
-  let tresury: SignerWithAddress;
+  let treasury: SignerWithAddress;
   let staker1: SignerWithAddress;
   let staker2: SignerWithAddress;
   let staker3: SignerWithAddress;
@@ -29,11 +29,11 @@ describe('Stake Contract', () => {
     maxSubscriptions: BigNumber.from(2),
     stakerFee: BigNumber.from(8000), // 80%,
     stakerAddress: null,
-    tresuryAddress: null,
+    treasuryAddress: null,
   };
 
   beforeEach(async () => {
-    [owner, tresury, staker1, staker2, staker3, staker4, subscriber1, subscriber2, ...addrs] =
+    [owner, treasury, staker1, staker2, staker3, staker4, subscriber1, subscriber2, ...addrs] =
       await ethers.getSigners();
 
     rareBlocks = (await deployContract(owner, await artifacts.readArtifact('RareBlocks'))) as RareBlocks;
@@ -44,14 +44,14 @@ describe('Stake Contract', () => {
 
     // update global config
     config.stakerAddress = rareblocksStaking.address;
-    config.tresuryAddress = tresury.address;
+    config.treasuryAddress = treasury.address;
 
     rareblocksSubscription = (await deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
       config.subscriptionMonthPrice,
       config.maxSubscriptions,
       config.stakerFee,
       config.stakerAddress,
-      config.tresuryAddress,
+      config.treasuryAddress,
     ])) as RareBlocksSubscription;
   });
 
@@ -85,17 +85,17 @@ describe('Stake Contract', () => {
 
       const tx = rareblocksStaking
         .connect(owner)
-        .updateAllowedSubscriptions([rareblocksSubscription.address, tresury.address], [false, true]);
+        .updateAllowedSubscriptions([rareblocksSubscription.address, treasury.address], [false, true]);
 
       await expect(tx)
         .to.emit(rareblocksStaking, 'AllowedSubscriptionUpdate')
         .withArgs(owner.address, rareblocksSubscription.address, false)
         .to.emit(rareblocksStaking, 'AllowedSubscriptionUpdate')
-        .withArgs(owner.address, tresury.address, true);
+        .withArgs(owner.address, treasury.address, true);
 
       // check that the list is updated
       expect(await rareblocksStaking.allowedSubscriptions(rareblocksSubscription.address)).to.be.equal(false);
-      expect(await rareblocksStaking.allowedSubscriptions(tresury.address)).to.be.equal(true);
+      expect(await rareblocksStaking.allowedSubscriptions(treasury.address)).to.be.equal(true);
     });
   });
 

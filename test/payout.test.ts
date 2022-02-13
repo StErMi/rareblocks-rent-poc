@@ -12,7 +12,7 @@ const {expect} = chai;
 
 describe('Stake Contract Payout', () => {
   let owner: SignerWithAddress;
-  let tresury: SignerWithAddress;
+  let treasury: SignerWithAddress;
   let staker1: SignerWithAddress;
   let staker2: SignerWithAddress;
   let staker3: SignerWithAddress;
@@ -35,7 +35,7 @@ describe('Stake Contract Payout', () => {
     maxSubscriptions: BigNumber.from(2),
     stakerFee: BigNumber.from(8000), // 80%,
     stakerAddress: null,
-    tresuryAddress: null,
+    treasuryAddress: null,
   };
 
   const STAKE_LOCK_PERIOD = 60 * 60 * 24 * 31; // 1 month
@@ -43,7 +43,7 @@ describe('Stake Contract Payout', () => {
   beforeEach(async () => {
     [
       owner,
-      tresury,
+      treasury,
       staker1,
       staker2,
       staker3,
@@ -66,14 +66,14 @@ describe('Stake Contract Payout', () => {
 
     // update global config
     config.stakerAddress = rareblocksStaking.address;
-    config.tresuryAddress = tresury.address;
+    config.treasuryAddress = treasury.address;
 
     rareblocksSubscription = (await deployContract(owner, await artifacts.readArtifact('RareBlocksSubscription'), [
       config.subscriptionMonthPrice,
       config.maxSubscriptions,
       config.stakerFee,
       config.stakerAddress,
-      config.tresuryAddress,
+      config.treasuryAddress,
     ])) as RareBlocksSubscription;
 
     // allow the rent contract to send funds to the Staking contract
