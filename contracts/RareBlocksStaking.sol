@@ -32,7 +32,7 @@ contract RareBlocksStaking is IRareBlocksStaking, IERC721Receiver, Ownable, Paus
     /// @notice token owned by stakers
     mapping(uint256 => StakeInfo) public stakes;
 
-    /// @notice
+    /// @notice the amount of balance that will distributed with the next payout
     uint256 private balanceNextPayout;
 
     /// @notice Set of stakers
