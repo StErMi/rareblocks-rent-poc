@@ -226,7 +226,7 @@ contract RareBlocksStaking is IRareBlocksStaking, IERC721Receiver, Ownable, Paus
         // update the user info
         stakerInfos[msg.sender].stakes -= 1;
 
-        // remove the user from the list of stakers if he does not own 0 shares
+        // remove the user from the list of stakers if he does own 0 staked pass
         if (stakerInfos[msg.sender].stakes == 0) {
             stakers.remove(msg.sender);
         }
