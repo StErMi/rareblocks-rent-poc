@@ -19,7 +19,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     uint256 public constant STAKING_MAX_FEE = 10_000;
 
     /// @notice Subscription price per month
-    uint256 public subscriptionMontlyPrice;
+    uint256 public subscriptionMonthlyPrice;
 
     /// @notice max amount of RareBlocks subscriptions
     uint256 public maxSubscriptions;
@@ -47,20 +47,20 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     constructor(
-        uint256 _subscriptionMontlyPrice,
+        uint256 _subscriptionMonthlyPrice,
         uint256 _maxSubscriptions,
         uint256 _stakingFeePercent,
         address _rareBlocksStaking,
         address _tresuryAddress
     ) Ownable() {
         // check that all the parameters are valid
-        require(_subscriptionMontlyPrice != 0, "INVALID_PRICE_PER_MONTH");
+        require(_subscriptionMonthlyPrice != 0, "INVALID_PRICE_PER_MONTH");
         require(_maxSubscriptions != 0, "INVALID_MAX_SUBSCRIPTIONS");
         require(_stakingFeePercent != 0 && _stakingFeePercent <= STAKING_MAX_FEE, "INVALID_STAKING_FEE");
         require(_rareBlocksStaking != address(0), "INVALID_STAKING_CONTRACT");
         require(_tresuryAddress != address(0), "INVALID_TRESURY_ADDRESSS");
 
-        subscriptionMontlyPrice = _subscriptionMontlyPrice;
+        subscriptionMonthlyPrice = _subscriptionMonthlyPrice;
         maxSubscriptions = _maxSubscriptions;
         stakingFeePercent = _stakingFeePercent;
         rareBlocksStaking = _rareBlocksStaking;
@@ -109,10 +109,10 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     /// @param newMaxSubscriptions The new max number of RareBlocks subscriptions
     event MaxSubscriptionsUpdated(address indexed user, uint256 newMaxSubscriptions);
 
-    /// @notice Emitted after the owner update the montly price of a rareblocks
+    /// @notice Emitted after the owner update the monthly price of a rareblocks
     /// @param user The authorized user who triggered the update
-    /// @param newSubscriptionMontlyPrice The price to subscribe to a RareBlocks pass for 1 month
-    event SubscriptionMonthPriceUpdated(address indexed user, uint256 newSubscriptionMontlyPrice);
+    /// @param newSubscriptionMonthlyPrice The price to subscribe to a RareBlocks pass for 1 month
+    event SubscriptionMonthPriceUpdated(address indexed user, uint256 newSubscriptionMonthlyPrice);
 
     /// @notice Emitted after a user has subscribed to a RareBlocks pass
     /// @param user The user who purchased the pass subscription
@@ -128,13 +128,13 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
     }
 
     /// @inheritdoc IRareBlocksSubscription
-    function setSubscriptionMontlyPrice(uint256 newSubscriptionMontlyPrice) external override onlyOwner {
-        require(newSubscriptionMontlyPrice != 0, "INVALID_PRICE");
-        require(subscriptionMontlyPrice != newSubscriptionMontlyPrice, "SAME_PRICE");
+    function setSubscriptionMonthlyPrice(uint256 newSubscriptionMonthlyPrice) external override onlyOwner {
+        require(newSubscriptionMonthlyPrice != 0, "INVALID_PRICE");
+        require(subscriptionMonthlyPrice != newSubscriptionMonthlyPrice, "SAME_PRICE");
 
-        subscriptionMontlyPrice = newSubscriptionMontlyPrice;
+        subscriptionMonthlyPrice = newSubscriptionMonthlyPrice;
 
-        emit SubscriptionMonthPriceUpdated(msg.sender, newSubscriptionMontlyPrice);
+        emit SubscriptionMonthPriceUpdated(msg.sender, newSubscriptionMonthlyPrice);
     }
 
     /// @inheritdoc IRareBlocksSubscription
@@ -142,7 +142,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
         // Check that the user amount of months is valid
         require(months != 0 && months <= 12, "INVALID_AMOUNT_OF_MONTHS");
 
-        uint256 totalPrice = months * subscriptionMontlyPrice;
+        uint256 totalPrice = months * subscriptionMonthlyPrice;
 
         // check if the user has sent enough funds to subscribe to the pass
         require(msg.value == totalPrice, "NOT_ENOUGH_FUNDS");

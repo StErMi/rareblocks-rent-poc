@@ -444,34 +444,34 @@ describe('Rent Contract', () => {
     });
   });
 
-  describe('Test setSubscriptionMontlyPrice()', () => {
+  describe('Test setSubscriptionMonthlyPrice()', () => {
     it('can be updated only by the owner', async () => {
-      const tx = rareblocksSubscription.connect(staker1).setSubscriptionMontlyPrice(BigNumber.from(1));
+      const tx = rareblocksSubscription.connect(staker1).setSubscriptionMonthlyPrice(BigNumber.from(1));
 
       await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('new price must be greater than zero', async () => {
-      const tx = rareblocksSubscription.connect(owner).setSubscriptionMontlyPrice(ethers.constants.Zero);
+      const tx = rareblocksSubscription.connect(owner).setSubscriptionMonthlyPrice(ethers.constants.Zero);
 
       await expect(tx).to.be.revertedWith('INVALID_PRICE');
     });
 
     it('new price must be different from the old one', async () => {
-      const tx = rareblocksSubscription.connect(owner).setSubscriptionMontlyPrice(config.subscriptionMonthPrice);
+      const tx = rareblocksSubscription.connect(owner).setSubscriptionMonthlyPrice(config.subscriptionMonthPrice);
 
       await expect(tx).to.be.revertedWith('SAME_PRICE');
     });
 
     it('successfully update subscription price', async () => {
       const newPrice = ethers.utils.parseEther('0.2');
-      const tx = rareblocksSubscription.connect(owner).setSubscriptionMontlyPrice(newPrice);
+      const tx = rareblocksSubscription.connect(owner).setSubscriptionMonthlyPrice(newPrice);
 
       await expect(tx)
         .to.emit(rareblocksSubscription, 'SubscriptionMonthPriceUpdated')
         .withArgs(owner.address, newPrice);
 
-      expect(await rareblocksSubscription.subscriptionMontlyPrice()).to.be.equal(newPrice);
+      expect(await rareblocksSubscription.subscriptionMonthlyPrice()).to.be.equal(newPrice);
     });
   });
 

@@ -28,9 +28,9 @@ interface IRareBlocksSubscription {
     /// @param newMaxSubscriptions The new max number of RareBlocks subscriptions
     function setMaxSubscriptions(uint256 newMaxSubscriptions) external;
 
-    /// @notice Sets a new montly price per subscription
-    /// @param newSubscriptionMontlyPrice The new subscription montly price
-    function setSubscriptionMontlyPrice(uint256 newSubscriptionMontlyPrice) external;
+    /// @notice Sets a new monthly price per subscription
+    /// @param newSubscriptionMonthlyPrice The new subscription monthly price
+    function setSubscriptionMonthlyPrice(uint256 newSubscriptionMonthlyPrice) external;
 
     /// @notice Subscribe to a RareBlock pass for a number of months
     /// @param months The amounth of months the user want to subscribe the pass
