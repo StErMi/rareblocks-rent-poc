@@ -122,6 +122,7 @@ contract RareBlocksSubscription is IRareBlocksSubscription, Ownable, Pausable {
 
     /// @inheritdoc IRareBlocksSubscription
     function setMaxSubscriptions(uint256 newMaxSubscriptions) external override onlyOwner {
+        require(newMaxSubscriptions != maxSubscriptions, "SAME_MAX_SUBSCRIPTIONS");
         maxSubscriptions = newMaxSubscriptions;
 
         emit MaxSubscriptionsUpdated(msg.sender, newMaxSubscriptions);

@@ -541,4 +541,26 @@ describe('Rent Contract', () => {
       expect(await rareblocksSubscription.rareBlocksStaking()).to.be.equal(staker1.address);
     });
   });
+
+  describe('Test setMaxSubscriptions()', () => {
+    it('can be updated only by the owner', async () => {
+      const tx = rareblocksSubscription.connect(staker1).setMaxSubscriptions(1000);
+
+      await expect(tx).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+
+    it('new newMaxSubscriptions must be different from the old one', async () => {
+      const tx = rareblocksSubscription.connect(owner).setMaxSubscriptions(config.maxSubscriptions);
+
+      await expect(tx).to.be.revertedWith('SAME_MAX_SUBSCRIPTIONS');
+    });
+
+    it('successfully update maxSubscriptions value', async () => {
+      const tx = rareblocksSubscription.connect(owner).setMaxSubscriptions(1000);
+
+      await expect(tx).to.emit(rareblocksSubscription, 'MaxSubscriptionsUpdated').withArgs(owner.address, 1000);
+
+      expect(await rareblocksSubscription.maxSubscriptions()).to.be.equal(1000);
+    });
+  });
 });
